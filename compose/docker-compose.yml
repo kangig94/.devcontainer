@@ -1,0 +1,71 @@
+name: devcontainer
+
+env_file:
+  - ../.env
+
+services:
+  ml-workspace:
+    image: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.9.1}-${CUDA_TAG:-cu128}${IMAGE_SUFFIX:--dev}
+    working_dir: /home/${USERNAME:-dev}/workspace
+    volumes:
+      # Entrypoint script (runtime injection)
+      - ../scripts/entrypoint.sh:/entrypoint.sh:ro
+
+      # Host mounts (configure in .env, defaults to workspace root)
+      - ${HOST_WORKSPACE_DIR:-../..}:/home/${USERNAME:-dev}/workspace
+      - ${HOST_CACHE_DIR:-~/.cache}:/home/${USERNAME:-dev}/.cache
+      - ${HOST_DATASETS_DIR:-../../datasets}:/home/${USERNAME:-dev}/datasets
+
+      # Claude CLI (session data & config)
+      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}:/home/${USERNAME:-dev}/.claude
+      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}/../.claude.json:/home/${USERNAME:-dev}/.claude.json
+
+      # Tmux config
+      - ${NAS_HOME}/.tmux.conf:/home/${USERNAME:-dev}/.tmux.conf
+
+    entrypoint: [ "/entrypoint.sh" ]
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - USER_UID=${USER_UID:-1000}
+      - USER_GID=${USER_GID:-1000}
+      - USERNAME=${USERNAME:-dev}
+      - WORKSPACE_DIR=/home/${USERNAME:-dev}/workspace
+      - CERT_DIR=/home/${USERNAME:-dev}/workspace/.devcontainer
+      - RUN_AS_ROOT=${RUN_AS_ROOT:-false}
+
+    ports:
+      - "${PORT_JUPYTER:-18888}:8888"
+      - "${PORT_TENSORBOARD:-16006}:6006"
+      - "${PORT_GRADIO:-17860}:7860"
+      - "${PORT_SSH:-10022}:22"
+
+    command: [ "zsh", "-lc", "jupyter lab &> /tmp/jupyter.log & exec zsh -l" ]
+
+    stdin_open: true
+    tty: true
+    ipc: host
+
+    runtime: nvidia
+
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [ gpu ]
+    #              device_ids: ['3']
+
+    networks:
+      - dev_network
+
+networks:
+  dev_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET:-192.168.10.0/24}

@@ -1,0 +1,75 @@
+# Multi-node training docker-compose
+# Usage:
+#   1. Start container on all nodes: make up-multinode
+#   2. Exec into each container and run scripts/setup_multinode.sh
+#   3. Exec into master and run training script
+
+services:
+  ml-training:
+    image: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.9.1}-${CUDA_TAG:-cu128}${IMAGE_SUFFIX:--dev}
+
+    # Use host network for NCCL multi-node communication
+    # This allows containers to use host IPs directly
+    network_mode: host
+
+    volumes:
+      # Entrypoint script (runtime injection)
+      - ../scripts/entrypoint.sh:/entrypoint.sh:ro
+
+      # Host mounts (configure in .env, defaults to workspace root)
+      - ${HOST_WORKSPACE_DIR:-../..}:/home/${USERNAME:-dev}/workspace
+      - ${HOST_CACHE_DIR:-~/.cache}:/home/${USERNAME:-dev}/.cache
+      - ${HOST_DATASETS_DIR:-../../datasets}:/home/${USERNAME:-dev}/datasets
+
+      # Claude CLI (session data & config)
+      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}:/home/${USERNAME:-dev}/.claude
+
+      # Tmux config
+      - ${NAS_HOME}/.tmux.conf:/home/${USERNAME:-dev}/.tmux.conf
+
+    entrypoint: [ "/entrypoint.sh" ]
+
+    # Note: With network_mode: host, container shares host network stack
+    # SSH: Container sshd on port 2222 (run setup_multinode.sh to start)
+    # Jupyter: 18888
+    # NCCL: Uses host network interfaces directly
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - USER_UID=${USER_UID:-1000}
+      - USER_GID=${USER_GID:-1000}
+      - USERNAME=${USERNAME:-dev}
+      - WORKSPACE_DIR=/home/${USERNAME:-dev}/workspace
+      - CERT_DIR=/home/${USERNAME:-dev}/workspace/.devcontainer
+      - RUN_AS_ROOT=${RUN_AS_ROOT:-false}
+      # NCCL settings - exclude docker/loopback interfaces, use external network
+      - NCCL_DEBUG=INFO
+      - NCCL_SOCKET_IFNAME=^docker0,lo
+      - NCCL_IB_DISABLE=1
+
+    runtime: nvidia
+
+    # RDMA/NCCL memory optimization
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+    working_dir: /home/${USERNAME:-dev}/workspace
+
+    # command: ["zsh"]
+    command: [ "zsh", "-lc", "jupyter lab --ip=0.0.0.0 --port=18888 &> /tmp/jupyter.log & exec zsh -l" ]
+
+    stdin_open: true
+    tty: true
+    ipc: host

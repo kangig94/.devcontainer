@@ -1,0 +1,51 @@
+{
+	"name": "ML Research & Experiments",
+	"dockerComposeFile": ["compose/docker-compose.yml", "compose/docker-compose.local.yml"],
+	"service": "ml-workspace",
+	"runServices": ["ml-workspace"],
+	"workspaceFolder": "/home/dev/workspace",
+	"remoteUser": "dev",
+	"overrideCommand": false,
+
+	// Disable UID update - entrypoint.sh already handles this via USER_UID/USER_GID env vars
+	"updateRemoteUserUID": false,
+
+	// Configure tool-specific properties
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-toolsai.jupyter",
+				"ms-azuretools.vscode-docker"
+			],
+			"settings": {
+				"python.defaultInterpreterPath": "/opt/venv/bin/python",
+				"python.formatting.provider": "none",
+				"[python]": {
+					"editor.defaultFormatter": "ms-python.black-formatter",
+					"editor.formatOnSave": true,
+					"editor.codeActionsOnSave": {
+						"source.organizeImports": "explicit"
+					}
+				},
+				"terminal.integrated.defaultProfile.linux": "zsh"
+			}
+		}
+	},
+
+	// Forward ports
+	"forwardPorts": [8888],
+	"portsAttributes": {
+		"8888": {
+			"label": "Jupyter Lab",
+			"onAutoForward": "notify"
+		}
+	},
+
+	// Post-create commands
+	"postCreateCommand": "echo 'Container ready! Run opencode to start.'",
+
+	// Keep container running when VSCode closes
+	"shutdownAction": "none"
+}

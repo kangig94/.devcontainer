@@ -1,0 +1,14 @@
+# Build configuration - only used by `make build`
+# Separated to prevent VSCode devcontainer from auto-building
+
+services:
+  ml-workspace:
+    build:
+      context: ../..
+      dockerfile: .devcontainer/Dockerfile
+      target: ${BUILD_TARGET:-user}
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+        TORCH_VERSION: ${TORCH_VERSION:-2.9.1}
+        CUDA_TAG: ${CUDA_TAG:-cu128}
+        MAX_JOBS: ${MAX_JOBS:-4}

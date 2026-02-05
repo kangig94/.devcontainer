@@ -1,0 +1,12 @@
+# Local development overrides
+# This file is automatically loaded by docker-compose and adds local-specific mounts
+# It's safe to delete this file on servers where these paths don't exist
+#
+# For root-only images, set in .env:
+#   CONTAINER_HOME=/root
+
+services:
+  ml-workspace:
+    volumes:
+      # Git credentials & config (local only)
+      # - ~/.gitconfig:${CONTAINER_HOME:-/home/${USERNAME:-dev}}/.gitconfig
