@@ -30,7 +30,7 @@ RUN curl -fsSL \
     | bash
 
 # ------------------------------------------------------------
-# Layer 3: Node.js + Claude Code CLI
+# Layer 3: Node.js + Claude Code + Codex + Gemini
 # ------------------------------------------------------------
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
@@ -43,6 +43,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && rm -rf /root/.local/share/claude /root/.local/bin/claude /root/.local/bin/env /root/.local/bin/env.fish \
     && ln -s /opt/claude/${CLAUDE_VER} /usr/local/bin/claude \
     && sed -i 's/^\. "\$HOME\/\.local\/bin\/env"$/[ -f "\$HOME\/.local\/bin\/env" ] \&\& . "\$HOME\/.local\/bin\/env"/' /root/.bashrc /root/.profile 2>/dev/null || true \
+    && npm install -g @openai/codex \
+    && npm install -g @google/gemini-cli \
     && mv /root/.npm /opt/.npm \
     && chmod -R 777 /opt/.npm
 
