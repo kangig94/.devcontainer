@@ -18,7 +18,6 @@ services:
 
       # Claude CLI (session data & config)
       - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}:/home/${USERNAME:-dev}/.claude
-      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}/../.claude.json:/home/${USERNAME:-dev}/.claude.json
 
       # Tmux config
       - ${NAS_HOME}/.tmux.conf:/home/${USERNAME:-dev}/.tmux.conf
