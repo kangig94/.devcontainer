@@ -44,12 +44,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && ln -s /opt/claude/${CLAUDE_VER} /usr/local/bin/claude \
     && sed -i 's/^\. "\$HOME\/\.local\/bin\/env"$/[ -f "\$HOME\/.local\/bin\/env" ] \&\& . "\$HOME\/.local\/bin\/env"/' /root/.bashrc /root/.profile 2>/dev/null || true \
     && npm install -g @openai/codex \
-    && npm install -g @google/gemini-cli \
-    && mv /root/.npm /opt/.npm \
-    && chmod -R 777 /opt/.npm
+    && npm install -g @google/gemini-cli
 
 ENV PATH="/root/.local/bin:${PATH}"
-ENV NPM_CONFIG_CACHE=/opt/.npm
 
 # ------------------------------------------------------------
 # Layer 4: uv + Python venv + Shell aliases
@@ -146,27 +143,28 @@ FROM base AS user
 
 ARG USER_UID=1000
 ARG USER_GID=1000
-ARG USERNAME=dev
 
 RUN apt-get update && apt-get install -y --no-install-recommends sudo gosu \
     && rm -rf /var/lib/apt/lists/* \
     && (userdel -r $(getent passwd ${USER_UID} | cut -d: -f1) 2>/dev/null || true) \
     && (groupdel $(getent group ${USER_GID} | cut -d: -f1) 2>/dev/null || true) \
-    && groupadd -g ${USER_GID} ${USERNAME} \
-    && useradd -m -u ${USER_UID} -g ${USER_GID} -s /usr/bin/zsh ${USERNAME} \
-    && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME} \
-    && find /root -maxdepth 1 -name '.*' ! -name '.' ! -name '..' -exec mv {} /home/${USERNAME}/ \; \
-    && mkdir -p /home/${USERNAME}/.ssh /home/${USERNAME}/.cache \
-    && chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}/.ssh /home/${USERNAME}/.zshrc /home/${USERNAME}/.zsh* /home/${USERNAME}/.antidote* 2>/dev/null || true \
-    && chmod 700 /home/${USERNAME}/.ssh \
-    && chmod 777 /home/${USERNAME}/.cache \
+    && groupadd -g ${USER_GID} dev \
+    && useradd -m -u ${USER_UID} -g ${USER_GID} -s /usr/bin/zsh dev \
+    && echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/dev \
+    && chmod 0440 /etc/sudoers.d/dev \
+    && find /root -maxdepth 1 -name '.*' ! -name '.' ! -name '..' -exec mv {} /home/dev/ \; \
+    && mkdir -p /home/dev/.ssh /home/dev/.cache /home/dev/.npm /home/dev/.local/bin /home/dev/.local/lib/node_modules \
+    && chown -R ${USER_UID}:${USER_GID} /home/dev/.ssh /home/dev/.zshrc /home/dev/.zsh* /home/dev/.antidote* /home/dev/.local /home/dev/.npm 2>/dev/null || true \
+    && chmod 700 /home/dev/.ssh \
+    && chmod 777 /home/dev/.cache \
     && chmod -R 777 /opt/venv \
-    && sed -i 's/compinit/compinit -u/' /home/${USERNAME}/.zshrc 2>/dev/null || true
+    && sed -i 's/compinit/compinit -u/' /home/dev/.zshrc 2>/dev/null || true
 
-WORKDIR /home/${USERNAME}
+WORKDIR /home/dev
 
-ENV HOME=/home/${USERNAME}
+ENV HOME=/home/dev
 ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ENV NPM_CONFIG_PREFIX=/home/dev/.local \
+    NPM_CONFIG_CACHE=/home/dev/.npm
 
 CMD ["zsh", "-l"]

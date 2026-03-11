@@ -27,7 +27,7 @@ export MAX_JOBS := $(shell echo $$(( $(shell nproc) / 2 )))
 # Project name is now defined in compose/docker-compose.yml (name: devcontainer)
 # No need for -p flag - compose file takes precedence
 # Use `make build verbose=1` for detailed build logs
-COMPOSE_FLAGS := --env-file .env
+COMPOSE_FLAGS := --env-file compose/.env
 BUILD_FLAGS := $(if $(verbose),--progress=plain,)
 
 # Default target: show help
@@ -129,7 +129,7 @@ build-root:
 	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
+	BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
 
 down-root:
 	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
@@ -158,7 +158,7 @@ build-multinode-root:
 	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-multinode-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
+	BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
 
 down-multinode-root:
 	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down

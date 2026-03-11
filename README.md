@@ -10,16 +10,21 @@ A development environment for general-purpose ML research and experiments.
 
 ```bash
 cd .devcontainer
-cp .env.sample .env
+cp compose/.env.sample compose/.env
 ```
 
-Edit `.env` with your settings:
+Edit `compose/.env` with your settings:
 ```bash
 DOCKER_REGISTRY=your-dockerhub-username   # Required
 NAS_HOME=/path/to/your/nas/home           # Required (or set HOST_* paths directly)
 ```
 
-See `.env.sample` for all available options.
+See `compose/.env.sample` for all available options.
+
+Notes:
+- `USERNAME` is fixed to `dev` (image/entrypoint policy)
+- Default home path is `CONTAINER_HOME=/home/dev`
+- Root mode (`make up-root`) uses `CONTAINER_HOME=/root`
 
 ### 2. Build & Start
 
@@ -71,7 +76,7 @@ make build          # Local (auto-detect UID/GID)
 make build-server   # Server
 ```
 
-Makefile automatically detects current user's UID/GID for building.
+UID/GID is reconciled at container startup by `entrypoint.sh` (runtime), based on mounted workspace ownership.
 
 ### Development with VS Code (Local)
 
@@ -102,11 +107,14 @@ python train.py ...
 ## Key Features
 
 - **Auto UID/GID Matching**: Auto-detects UID/GID from mounted workspace (entrypoint)
+- **Fixed Username Policy**: Username is fixed to `dev`, only UID/GID is dynamic
 - **Passwordless sudo**: Run sudo without password inside container
 - **Multi-GPU Architecture**: Supports RTX 30/40/50, A100, H100, B100
 - **GPU Support**: Auto-detects NVIDIA GPUs
 - **Multi-Node Training**: DeepSpeed distributed training support (SSH port 2222)
 - **Jupyter Lab**: Auto-forwarded from port 18888 → 8888
+- **npm Global Without sudo**: `npm -g` installs to `~/.local` by default
+- **Claude Plugin Auto Build**: Unbuilt Claude plugins are built automatically on container startup
 
 ## Port Mapping
 
@@ -121,14 +129,15 @@ python train.py ...
 ## Mounted Volumes
 
 ### Base (All Environments)
-- NAS workspace: `${NAS_HOME}/workspace` → `/home/dev/workspace`
-- NAS cache: `${NAS_HOME}/.cache` → `/home/dev/.cache`
-- NAS datasets: `${NAS_HOME}/datasets` → `/home/dev/datasets`
+- NAS workspace: `${NAS_HOME}/workspace` → `${CONTAINER_HOME}/workspace`
+- NAS cache: `${NAS_HOME}/.cache` → `${CONTAINER_HOME}/.cache`
+- NAS datasets: `${NAS_HOME}/datasets` → `${CONTAINER_HOME}/datasets`
+- Claude session: `${NAS_HOME}/.claude` → `${CONTAINER_HOME}/.claude`
+- Tmux config: `${NAS_HOME}/.tmux.conf` → `${CONTAINER_HOME}/.tmux.conf`
 
 ### Local Only (docker-compose.local.yml)
-- Git settings: `~/.gitconfig`, `~/.git-credentials`
-- OpenCode: `~/.config/opencode`, `~/.local/share/opencode`
-- Claude session: `~/.claude`
+- This file is intentionally minimal by default.
+- Add machine-specific mounts here when needed (for example local Git credentials).
 
 ## Installed Tools
 
@@ -164,6 +173,7 @@ make build-root   # Build with root target
 make up-root      # Start root container
 make down-root    # Stop root container
 make shell-root   # Access root container shell
+# (root mode automatically sets CONTAINER_HOME=/root)
 
 # Multi-Node Training (DeepSpeed distributed)
 make up-multinode    # Start multinode container
@@ -196,8 +206,8 @@ Master Node                      Worker Nodes
 
 ### Configuration Files
 
-- `docker-compose.multinode.yml`: docker-compose for multi-node (port 2222:22, NCCL ports)
-- `setup_multinode.sh`: SSH key generation and installation script
+- `docker-compose.multinode.yml`: docker-compose for multi-node (host network, SSH 2222, NCCL ports)
+- `scripts/setup_multinode.sh`: SSH key generation and installation script
 
 ### Execution Steps
 
@@ -220,7 +230,7 @@ make up-multinode
 
 # 4. All nodes: Access container and setup SSH
 make shell-multinode
-./workspace/.devcontainer/setup_multinode.sh
+./workspace/.devcontainer/scripts/setup_multinode.sh
 # SSH keys are generated only on first node since NAS is shared
 
 # 5. Master node only: Run training
@@ -242,7 +252,7 @@ NODES=(
 # GPUs per node
 GPUS_PER_NODE=8
 
-# SSH port (mapped as 2222:22 in docker-compose)
+# SSH port (container sshd listens on host-network port 2222)
 SSH_PORT=2222
 ```
 
@@ -250,7 +260,7 @@ SSH_PORT=2222
 
 | Port | Purpose |
 |------|---------|
-| 2222:22 | SSH (DeepSpeed launcher) |
+| 2222 | SSH (DeepSpeed launcher) |
 | 29500-29510 | NCCL communication (torch.distributed) |
 
 ### Notes
@@ -272,9 +282,18 @@ make up
 
 ### Permission denied Error
 
-UID/GID mismatch issue. Rebuild the image:
+UID/GID or home ownership mismatch issue. Restart container to re-run entrypoint ownership sync:
 ```bash
-make build   # Rebuild with current user UID/GID
+make down
+make up
+```
+
+### zoxide: unable to create data directory
+
+If `~/.local/share` was previously created with a different owner, restart container so entrypoint can fix ownership:
+```bash
+make down
+make up
 ```
 
 ### docker-compose.local.yml Not Found Error
