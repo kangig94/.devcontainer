@@ -13,8 +13,8 @@ export PYTHON_VERSION := $(py)
 # Convert to tag format: 3.12 → py312, 3.10 → py310
 export PY_TAG := py$(subst .,,$(py))
 
-# Torch version: use `torch=2.9.1` to set (default: 2.9.1)
-torch ?= 2.9.1
+# Torch version: use `torch=2.10.0` to set (default: 2.10.0)
+torch ?= 2.10.0
 export TORCH_VERSION := $(torch)
 
 # CUDA version for torch wheel: use `cu=126` to set (default: 128)
