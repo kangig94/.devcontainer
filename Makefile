@@ -1,4 +1,4 @@
-.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root help
+.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-conda up-conda build-conda-root up-conda-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root help
 
 # Auto-detect UID/GID for runtime (chmod 777 allows any UID to write to home)
 export USER_UID := $(shell id -u)
@@ -68,6 +68,12 @@ help:
 	@echo "  make down-root     - Stop root container"
 	@echo "  make shell-root    - Access root container shell"
 	@echo ""
+	@echo "Conda variants:"
+	@echo "  make build-conda      - Build conda-based user image"
+	@echo "  make up-conda         - Start conda-based container"
+	@echo "  make build-conda-root - Build conda-based root image"
+	@echo "  make up-conda-root    - Start conda-based root container"
+	@echo ""
 	@echo "Multi-Node Training (DeepSpeed distributed):"
 	@echo "  make build-multinode - Build multinode container"
 	@echo "  make up-multinode    - Start multinode container"
@@ -136,6 +142,22 @@ down-root:
 
 shell-root:
 	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec ml-workspace zsh
+
+# ============================================
+# Conda image commands
+# ============================================
+
+build-conda:
+	IMAGE_NAME=conda-torch DOCKERFILE_PATH=.devcontainer/Dockerfile.conda IMAGE_SUFFIX=-conda docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+
+up-conda:
+	IMAGE_NAME=conda-torch IMAGE_SUFFIX=-conda docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml up -d
+
+build-conda-root:
+	IMAGE_NAME=conda-torch DOCKERFILE_PATH=.devcontainer/Dockerfile.conda BUILD_TARGET=root IMAGE_SUFFIX=-conda-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+
+up-conda-root:
+	IMAGE_NAME=conda-torch BUILD_TARGET=root IMAGE_SUFFIX=-conda-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
 
 # ============================================
 # Multi-node training commands

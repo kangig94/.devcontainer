@@ -5,7 +5,7 @@ services:
   ml-workspace:
     build:
       context: ../..
-      dockerfile: .devcontainer/Dockerfile
+      dockerfile: ${DOCKERFILE_PATH:-.devcontainer/Dockerfile}
       target: ${BUILD_TARGET:-user}
       args:
         PYTHON_VERSION: ${PYTHON_VERSION:-3.12}

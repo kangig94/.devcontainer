@@ -104,6 +104,40 @@ make shell-server
 python train.py ...
 ```
 
+## Miniforge Variant
+
+This branch also includes an optional conda-compatible image variant for users who prefer conda workflows.
+The default and recommended path is still the `uv` image and commands above.
+
+Notes:
+- The conda variant is built from `Dockerfile.conda`
+- It uses `Miniforge` as the conda bootstrap, not `Miniconda`
+- Conda images use `conda-torch` as the image name
+- Runtime Python should come from `/opt/venv` rather than the base `/opt/conda`
+
+### Conda Commands
+
+```bash
+# User image
+make build-conda
+
+# Root image
+make build-conda-root
+```
+
+Version override example:
+
+```bash
+make build-conda py=3.10 torch=2.8.0
+make build-conda-root py=3.10 torch=2.8.0
+```
+
+### Conda Runtime Notes
+
+- `make up-conda` and `make up-conda-root` reuse the same compose project/service name as the default container
+- If `devcontainer-ml-workspace-1` is already running, starting a conda variant can replace that running container
+- If you need to validate the conda image without touching an active workspace container, use an isolated `docker run` test instead of `make up-conda`
+
 ## Key Features
 
 - **Auto UID/GID Matching**: Auto-detects UID/GID from mounted workspace (entrypoint)
