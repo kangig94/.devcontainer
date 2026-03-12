@@ -30,7 +30,8 @@
 					}
 				},
 				"terminal.integrated.defaultProfile.linux": "zsh",
-				"git.autorefresh": false
+				"git.autorefresh": false,
+				"python.terminal.activateEnvironment": false
 			}
 		}
 	},
