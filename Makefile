@@ -148,16 +148,16 @@ shell-root:
 # ============================================
 
 build-conda:
-	IMAGE_NAME=conda-torch DOCKERFILE_PATH=.devcontainer/Dockerfile.conda IMAGE_SUFFIX=-conda docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+	IMAGE_NAME=conda-torch DOCKERFILE_PATH=.devcontainer/Dockerfile.conda IMAGE_SUFFIX= docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-conda:
-	IMAGE_NAME=conda-torch IMAGE_SUFFIX=-conda docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml up -d
+	IMAGE_NAME=conda-torch IMAGE_SUFFIX= docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml up -d
 
 build-conda-root:
-	IMAGE_NAME=conda-torch DOCKERFILE_PATH=.devcontainer/Dockerfile.conda BUILD_TARGET=root IMAGE_SUFFIX=-conda-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+	IMAGE_NAME=conda-torch DOCKERFILE_PATH=.devcontainer/Dockerfile.conda BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-conda-root:
-	IMAGE_NAME=conda-torch BUILD_TARGET=root IMAGE_SUFFIX=-conda-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
+	IMAGE_NAME=conda-torch BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
 
 # ============================================
 # Multi-node training commands
