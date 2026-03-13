@@ -82,6 +82,8 @@ clx() {
     cd "../$branch_name" || return 1
     claude --model opusplan --permission-mode plan
 }
+# Explicit wrapper for bypassing approval prompts
+alias clb='claude --dangerously-skip-permissions'
 ALIASES
 
 ENV PATH="${VENV_PATH}/bin:${PATH}"
