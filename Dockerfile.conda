@@ -46,7 +46,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && npm install -g @openai/codex \
     && npm install -g @google/gemini-cli
 
-ENV PATH="/root/.local/bin:${PATH}"
+ENV PATH="/root/.local/bin:/root/.local/npm/bin:${PATH}"
 
 # ------------------------------------------------------------
 # Layer 4: Miniforge + Python env + Shell aliases
@@ -124,7 +124,7 @@ EXPOSE 8888 22
 FROM base AS root
 
 ENV HOME=/root
-ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/opt/conda/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.local/npm/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/opt/conda/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 SHELL ["/usr/bin/zsh", "-lc"]
 CMD ["zsh", "-l"]
@@ -146,7 +146,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends sudo gosu \
     && echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/dev \
     && chmod 0440 /etc/sudoers.d/dev \
     && find /root -maxdepth 1 -name '.*' ! -name '.' ! -name '..' -exec mv {} /home/dev/ \; \
-    && mkdir -p /home/dev/.ssh /home/dev/.cache /home/dev/.npm /home/dev/.local/bin /home/dev/.local/lib/node_modules \
+    && mkdir -p /home/dev/.ssh /home/dev/.cache /home/dev/.npm /home/dev/.local/bin /home/dev/.local/npm/bin /home/dev/.local/npm/lib/node_modules \
     && chown -R ${USER_UID}:${USER_GID} /home/dev/.ssh /home/dev/.zshrc /home/dev/.zsh* /home/dev/.antidote* /home/dev/.local /home/dev/.npm 2>/dev/null || true \
     && chmod 700 /home/dev/.ssh \
     && chmod 777 /home/dev/.cache \
@@ -156,8 +156,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends sudo gosu \
 WORKDIR /home/dev
 
 ENV HOME=/home/dev
-ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/opt/conda/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ENV NPM_CONFIG_PREFIX=/home/dev/.local \
+ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.local/npm/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/opt/conda/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ENV NPM_CONFIG_PREFIX=/home/dev/.local/npm \
     NPM_CONFIG_CACHE=/home/dev/.npm
 
 CMD ["zsh", "-l"]
