@@ -85,9 +85,13 @@ maybe_build_claude_plugins() {
 
 configure_npm_env() {
     local home_dir="$1"
-    export NPM_CONFIG_PREFIX="${home_dir}/.local"
+    local npm_bin="${home_dir}/.local/npm/bin"
+    export NPM_CONFIG_PREFIX="${home_dir}/.local/npm"
     export NPM_CONFIG_CACHE="${home_dir}/.npm"
-    export PATH="${home_dir}/.local/bin:${PATH}"
+    case ":${PATH}:" in
+        *":${npm_bin}:"*) ;;
+        *) export PATH="${PATH}:${npm_bin}" ;;
+    esac
 }
 
 # Install CA certs if CERT_DIR is set and contains .crt files
@@ -108,7 +112,7 @@ if [ "${RUN_AS_ROOT}" = "true" ] || ! id "${USERNAME}" &>/dev/null; then
     export HOME="${TARGET_HOME}"
     configure_npm_env "${HOME}"
 
-    mkdir -p "${HOME}/.local/bin" "${HOME}/.local/lib/node_modules" "${HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
+    mkdir -p "${HOME}/.local/bin" "${HOME}/.local/npm/bin" "${HOME}/.local/npm/lib/node_modules" "${HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
     mkdir -p "${HOME}/.npm" 2>/dev/null || true
     mkdir -p "${HOME}/.cache" 2>/dev/null || true
     mkdir -p "${HOME}/.config/vllm" 2>/dev/null || true
@@ -174,10 +178,11 @@ if [ "$(id -u)" = "0" ]; then
         "${TARGET_HOME}/.claude"; do
         [ -e "$dir" ] && chown ${USER_UID}:${USER_GID} "$dir" 2>/dev/null || true
     done
-    mkdir -p "${TARGET_HOME}/.local/bin" "${TARGET_HOME}/.local/lib/node_modules" 2>/dev/null || true
+    mkdir -p "${TARGET_HOME}/.local/bin" "${TARGET_HOME}/.local/npm/bin" "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
     mkdir -p "${TARGET_HOME}/.local/share" "${TARGET_HOME}/.local/state" "${TARGET_HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
     [ -d "${TARGET_HOME}/.local/bin" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/bin" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/lib/node_modules" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/lib/node_modules" 2>/dev/null || true
+    [ -d "${TARGET_HOME}/.local/npm/bin" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/npm/bin" 2>/dev/null || true
+    [ -d "${TARGET_HOME}/.local/npm/lib/node_modules" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
     [ -d "${TARGET_HOME}/.local/share" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/share" 2>/dev/null || true
     [ -d "${TARGET_HOME}/.local/state" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/state" 2>/dev/null || true
     # npm cache can contain stale root-owned files from previous runs.
@@ -208,10 +213,11 @@ else
         "${TARGET_HOME}/.claude"; do
         [ -e "$dir" ] && sudo chown ${CURRENT_UID}:${CURRENT_GID} "$dir" 2>/dev/null || true
     done
-    sudo mkdir -p "${TARGET_HOME}/.local/bin" "${TARGET_HOME}/.local/lib/node_modules" 2>/dev/null || true
+    sudo mkdir -p "${TARGET_HOME}/.local/bin" "${TARGET_HOME}/.local/npm/bin" "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
     sudo mkdir -p "${TARGET_HOME}/.local/share" "${TARGET_HOME}/.local/state" "${TARGET_HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
     [ -d "${TARGET_HOME}/.local/bin" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/bin" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/lib/node_modules" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/lib/node_modules" 2>/dev/null || true
+    [ -d "${TARGET_HOME}/.local/npm/bin" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/npm/bin" 2>/dev/null || true
+    [ -d "${TARGET_HOME}/.local/npm/lib/node_modules" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
     [ -d "${TARGET_HOME}/.local/share" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/share" 2>/dev/null || true
     [ -d "${TARGET_HOME}/.local/state" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/state" 2>/dev/null || true
     [ -d "${TARGET_HOME}/.npm" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.npm" 2>/dev/null || true
