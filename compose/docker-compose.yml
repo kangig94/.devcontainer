@@ -22,6 +22,9 @@ services:
       # Tmux config
       - ${NAS_HOME}/.tmux.conf:${CONTAINER_HOME:-/home/dev}/.tmux.conf
 
+      # Claude plugins cache on local disk (avoid NAS small-file I/O penalty)
+      - claude-plugins-cache:${CONTAINER_HOME:-/home/dev}/.claude/plugins/cache
+
     entrypoint: [ "/entrypoint.sh" ]
 
     environment:
@@ -62,6 +65,9 @@ services:
 
     networks:
       - dev_network
+
+volumes:
+  claude-plugins-cache:
 
 networks:
   dev_network:
