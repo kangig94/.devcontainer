@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nano tree ca-certificates curl wget git pkg-config tmux unzip net-tools \
     build-essential g++ libstdc++6 libgcc-s1 ninja-build cmake make \
     libjpeg-dev libpng-dev libtiff-dev ffmpeg \
-    libgl1-mesa-glx libglib2.0-0 \
+    libgl1 libglib2.0-0 \
     openssh-server openssh-client pdsh \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/run/sshd /root/.ssh \
