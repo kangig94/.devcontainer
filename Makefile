@@ -13,16 +13,9 @@ export PYTHON_VERSION := $(py)
 # Convert to tag format: 3.12 → py312, 3.10 → py310
 export PY_TAG := py$(subst .,,$(py))
 
-# Torch version: use `torch=2.9.1` to set (default: 2.9.1)
-torch ?= 2.9.1
-export TORCH_VERSION := $(torch)
-
-# CUDA version for torch wheel: use `cu=126` to set (default: 128)
-cu ?= 128
+# CUDA version for PaddlePaddle wheel: use `cu=126` to set (default: 126)
+cu ?= 126
 export CUDA_TAG := cu$(cu)
-
-# Max parallel jobs for flash-attn build (50% of CPU cores)
-export MAX_JOBS := $(shell echo $$(( $(shell nproc) / 2 )))
 
 # Project name is now defined in compose/docker-compose.yml (name: devcontainer)
 # No need for -p flag - compose file takes precedence
@@ -38,11 +31,10 @@ help:
 	@echo ""
 	@echo "Version settings:"
 	@echo "  py=3.12 (default)     -> image: py312-..."
-	@echo "  torch=2.9.1 (default) -> image: ...-2.9.1-..."
-	@echo "  cu=128 (default)      -> image: ...-cu128-..."
+	@echo "  cu=126 (default)      -> image: ...-cu126-..."
 	@echo ""
 	@echo "Example:"
-	@echo "  make build py=3.10 torch=2.5.1 cu=124"
+	@echo "  make build py=3.10 cu=123"
 	@echo ""
 	@echo "Local development (mounts Git credentials, OpenCode auth, etc.):"
 	@echo "  make build-local   - Build container (with local-only mounts)"
