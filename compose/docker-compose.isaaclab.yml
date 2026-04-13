@@ -7,7 +7,7 @@ services:
       - .env.isaaclab
 
     image: ${DOCKER_REGISTRY:-local}/isaaclab:py${PYTHON_VERSION:-312}
-    working_dir: ${CONTAINER_HOME:-/home/dev}/workspace/IsaacLab
+    working_dir: ${CONTAINER_HOME:-/home/dev}/workspace
 
     volumes:
       # Entrypoint
