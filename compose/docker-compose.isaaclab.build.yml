@@ -1,0 +1,13 @@
+# Build configuration for Isaac Lab image
+# Used by: make build-isaaclab
+
+services:
+  isaaclab:
+    build:
+      context: ../..
+      dockerfile: .devcontainer/Dockerfile.isaaclab
+      target: ${BUILD_TARGET:-user}
+      network: host
+      args:
+        ISAACSIM_IMAGE: ${ISAACSIM_IMAGE:-nvcr.io/nvidia/isaac-sim:6.0.0-dev2}
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}

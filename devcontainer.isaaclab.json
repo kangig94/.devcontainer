@@ -1,0 +1,42 @@
+{
+	"name": "Isaac Lab (Isaac Sim + Newton)",
+	"dockerComposeFile": [
+		"compose/docker-compose.isaaclab.yml",
+		"compose/docker-compose.isaaclab.build.yml"
+	],
+	"service": "isaaclab",
+	"runServices": ["isaaclab"],
+	"workspaceFolder": "/home/dev/workspace/IsaacLab",
+	"remoteUser": "dev",
+	"overrideCommand": false,
+	"updateRemoteUserUID": false,
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-toolsai.jupyter",
+				"ms-azuretools.vscode-docker"
+			],
+			"settings": {
+				"python.defaultInterpreterPath": "/opt/venv/bin/python",
+				"terminal.integrated.defaultProfile.linux": "zsh",
+				"git.autorefresh": false,
+				"python.terminal.activateEnvironment": false
+			}
+		}
+	},
+
+	"forwardPorts": [8012, 9876, 8888, 49100, 47998],
+	"portsAttributes": {
+		"8012": { "label": "Viser", "onAutoForward": "notify" },
+		"9876": { "label": "Rerun", "onAutoForward": "notify" },
+		"8888": { "label": "Jupyter Lab", "onAutoForward": "notify" },
+		"49100": { "label": "WebRTC Signal", "onAutoForward": "notify" },
+		"47998": { "label": "WebRTC Stream", "onAutoForward": "notify" }
+	},
+
+	"postCreateCommand": "cd ~/workspace/IsaacLab && ./isaaclab.sh --install",
+	"shutdownAction": "none"
+}

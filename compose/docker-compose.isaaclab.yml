@@ -1,0 +1,58 @@
+name: isaaclab
+
+services:
+  isaaclab:
+    env_file:
+      - .env
+      - .env.isaaclab
+
+    image: ${DOCKER_REGISTRY:-local}/isaaclab:py${PYTHON_VERSION:-312}
+    working_dir: ${CONTAINER_HOME:-/home/dev}/workspace/IsaacLab
+
+    volumes:
+      # Entrypoint
+      - ../scripts/entrypoint.sh:/entrypoint.sh:ro
+      # Host workspace (includes IsaacLab source)
+      - ${HOST_WORKSPACE_DIR:-../..}:${CONTAINER_HOME:-/home/dev}/workspace
+      - ${HOST_CACHE_DIR:-~/.cache}:${CONTAINER_HOME:-/home/dev}/.cache
+      # Claude CLI
+      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}:${CONTAINER_HOME:-/home/dev}/.claude
+      - claude-plugins-cache:${CONTAINER_HOME:-/home/dev}/.claude/plugins/cache
+      # Tmux
+      - ${NAS_HOME}/.tmux.conf:${CONTAINER_HOME:-/home/dev}/.tmux.conf:ro
+
+    entrypoint: ["/entrypoint.sh"]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - USER_UID=${USER_UID:-1000}
+      - USER_GID=${USER_GID:-1000}
+      - USERNAME=dev
+      - CONTAINER_HOME=${CONTAINER_HOME:-/home/dev}
+      - WORKSPACE_DIR=${CONTAINER_HOME:-/home/dev}/workspace
+      - CERT_DIR=${CONTAINER_HOME:-/home/dev}/workspace/.devcontainer
+      - RUN_AS_ROOT=${RUN_AS_ROOT:-false}
+      - VIRTUAL_ENV=/opt/venv
+      - UV_EXTRA_INDEX_URL=https://pypi.nvidia.com
+      - UV_INDEX_STRATEGY=unsafe-best-match
+      - UV_OVERRIDE=/etc/isaaclab-overrides.txt
+      - PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com
+      - PIP_FIND_LINKS=https://py.mujoco.org/
+      - ACCEPT_EULA=Y
+      - PRIVACY_CONSENT=Y
+
+    command: ["zsh", "-lc", "jupyter lab &> /tmp/jupyter.log & exec zsh -l"]
+
+    stdin_open: true
+    tty: true
+    ipc: host
+    runtime: nvidia
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
+volumes:
+  claude-plugins-cache:

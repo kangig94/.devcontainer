@@ -1,4 +1,4 @@
-.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root help
+.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root build-isaaclab up-isaaclab down-isaaclab shell-isaaclab help
 
 # Auto-detect UID/GID for runtime (exported: compose files reference these)
 export USER_UID := $(shell id -u)
@@ -76,6 +76,13 @@ help:
 	@echo "  make up-multinode-root    - Start root multinode"
 	@echo "  make down-multinode-root  - Stop root multinode"
 	@echo "  make shell-multinode-root - Access root multinode shell"
+	@echo ""
+	@echo "Isaac Lab (Isaac Sim + Newton):"
+	@echo "  make build-isaaclab  - Build Isaac Lab image (on Isaac Sim)"
+	@echo "  make up-isaaclab     - Start container"
+	@echo "  make down-isaaclab   - Stop container"
+	@echo "  make shell-isaaclab  - Access container shell"
+	@echo "  First run: isaaclab.sh --install inside container"
 	@echo ""
 # ============================================
 # Local development commands (with local mounts)
@@ -162,3 +169,21 @@ down-multinode-root:
 
 shell-multinode-root:
 	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec ml-training zsh
+
+# ============================================
+# Isaac Lab (Isaac Sim + Newton)
+# ============================================
+
+ISAACLAB_COMPOSE_FLAGS := --env-file compose/.env --env-file compose/.env.isaaclab
+
+build-isaaclab:
+	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.build.yml build $(BUILD_FLAGS)
+
+up-isaaclab:
+	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml up -d
+
+down-isaaclab:
+	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml down
+
+shell-isaaclab:
+	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml exec -u dev isaaclab zsh
