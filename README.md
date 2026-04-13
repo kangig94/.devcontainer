@@ -270,6 +270,81 @@ SSH_PORT=2222
 - SSH keys are shared via NAS (`workspace/.devcontainer/ssh_keys/`)
 - NCCL_IB_DISABLE=1: Setting for environments without InfiniBand
 
+## Isaac Lab (Isaac Sim + Newton)
+
+Robotics simulation environment based on Isaac Sim NGC image with uv-managed Python.
+
+**Base Image**: `nvcr.io/nvidia/isaac-sim:6.0.0-dev2`
+**Bundled**: PyTorch 2.10.0, Warp 1.12.0, MuJoCo 3.5.0, Newton 1.0.0
+
+### Quick Start
+
+```bash
+cd .devcontainer
+
+# Build image (first time only)
+make build-isaaclab
+
+# Start container
+make up-isaaclab
+
+# Install IsaacLab (first time only, inside container)
+make shell-isaaclab
+cd ~/workspace/IsaacLab && ./isaaclab.sh --install
+```
+
+### Launch Isaac Sim GUI (local, requires display)
+
+```bash
+make sim
+```
+
+### Commands
+
+```bash
+make build-isaaclab          # Build image
+make up-isaaclab             # Start container (works on local and server)
+make down-isaaclab           # Stop container
+make shell-isaaclab          # Access shell
+make sim                     # Launch Isaac Sim GUI (requires display)
+make up-isaaclab-multinode   # Start with NCCL (distributed training)
+make down-isaaclab-multinode # Stop multinode container
+```
+
+### Training
+
+```bash
+# Headless training with Viser visualization (recommended)
+./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py \
+  --task Isaac-Cartpole-Direct-v0
+
+# Training with WebRTC streaming (optional, needs web-viewer container)
+./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py \
+  --task Isaac-Cartpole-Direct-v0 \
+  --livestream 1 \
+  --experience /isaac-sim/apps/isaacsim.exp.full.streaming.kit
+```
+
+### Ports (network_mode: host)
+
+| Port | Purpose |
+|------|---------|
+| 8080 | Viser (Newton visualizer) |
+| 8888 | Jupyter Lab |
+| 9876 | Rerun |
+| 49100 | WebRTC signal (if livestream) |
+| 47998 | WebRTC stream (if livestream) |
+
+### Architecture
+
+```
+Local Workstation                 GPU Cluster (headless)
+├── make up-isaaclab              ├── make up-isaaclab
+├── make sim (GUI)                ├── Viser for monitoring
+├── Env design, debugging         ├── Training at scale
+└── Same Docker image             └── Same Docker image
+```
+
 ## Troubleshooting
 
 ### Rebuild Container
