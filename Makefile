@@ -1,4 +1,4 @@
-.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root build-isaaclab up-isaaclab down-isaaclab shell-isaaclab help
+.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root build-isaaclab up-isaaclab down-isaaclab shell-isaaclab up-isaaclab-multinode down-isaaclab-multinode shell-isaaclab-multinode help
 
 # Auto-detect UID/GID for runtime (exported: compose files reference these)
 export USER_UID := $(shell id -u)
@@ -78,10 +78,12 @@ help:
 	@echo "  make shell-multinode-root - Access root multinode shell"
 	@echo ""
 	@echo "Isaac Lab (Isaac Sim + Newton):"
-	@echo "  make build-isaaclab  - Build Isaac Lab image (on Isaac Sim)"
-	@echo "  make up-isaaclab     - Start container"
-	@echo "  make down-isaaclab   - Stop container"
-	@echo "  make shell-isaaclab  - Access container shell"
+	@echo "  make build-isaaclab          - Build Isaac Lab image (on Isaac Sim)"
+	@echo "  make up-isaaclab             - Start container (local, with display)"
+	@echo "  make down-isaaclab           - Stop container"
+	@echo "  make shell-isaaclab          - Access container shell"
+	@echo "  make up-isaaclab-multinode   - Start with NCCL (distributed training)"
+	@echo "  make down-isaaclab-multinode - Stop multinode container"
 	@echo "  First run: isaaclab.sh --install inside container"
 	@echo ""
 # ============================================
@@ -187,3 +189,16 @@ down-isaaclab:
 
 shell-isaaclab:
 	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml exec -u dev isaaclab zsh
+
+# ============================================
+# Isaac Lab Multi-Node (distributed training)
+# ============================================
+
+up-isaaclab-multinode:
+	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.multinode.yml up -d
+
+down-isaaclab-multinode:
+	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.multinode.yml down
+
+shell-isaaclab-multinode:
+	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.multinode.yml exec -u dev isaaclab zsh
