@@ -1,4 +1,4 @@
-.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root build-isaaclab up-isaaclab down-isaaclab shell-isaaclab up-isaaclab-multinode down-isaaclab-multinode shell-isaaclab-multinode help
+.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root build-isaaclab up-isaaclab down-isaaclab shell-isaaclab sim up-isaaclab-multinode down-isaaclab-multinode shell-isaaclab-multinode help
 
 # Auto-detect UID/GID for runtime (exported: compose files reference these)
 export USER_UID := $(shell id -u)
@@ -79,7 +79,8 @@ help:
 	@echo ""
 	@echo "Isaac Lab (Isaac Sim + Newton):"
 	@echo "  make build-isaaclab          - Build Isaac Lab image (on Isaac Sim)"
-	@echo "  make up-isaaclab             - Start container (local, with display)"
+	@echo "  make up-isaaclab             - Start container"
+	@echo "  make sim                     - Launch Isaac Sim GUI (requires display)"
 	@echo "  make down-isaaclab           - Stop container"
 	@echo "  make shell-isaaclab          - Access container shell"
 	@echo "  make up-isaaclab-multinode   - Start with NCCL (distributed training)"
@@ -180,6 +181,10 @@ ISAACLAB_COMPOSE_FLAGS := --env-file compose/.env --env-file compose/.env.isaacl
 
 build-isaaclab:
 	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.build.yml build $(BUILD_FLAGS)
+
+sim:
+	xhost +local: > /dev/null 2>&1
+	docker exec -u dev isaaclab-isaaclab-1 /isaac-sim/isaac-sim.sh
 
 up-isaaclab:
 	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml up -d
