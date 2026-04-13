@@ -161,6 +161,23 @@ c.ServerApp.root_dir = os.environ.get("HOME", "/root")
 c.ServerApp.allow_root = os.getuid() == 0
 EOF
 
+# ------------------------------------------------------------
+# Layer 6: IsaacLab + runtime patches
+# ------------------------------------------------------------
+ARG ISAACLAB_VERSION="v3.0.0-beta"
+ENV ISAACLAB_PATH=/opt/isaaclab
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/pip \
+    git clone --depth 1 --branch ${ISAACLAB_VERSION} \
+        https://github.com/isaac-sim/IsaacLab.git ${ISAACLAB_PATH} \
+    && cd ${ISAACLAB_PATH} && ./isaaclab.sh --install \
+    # Viser requires websockets 13+, Isaac Sim bundles 12.0
+    && pip install --target /isaac-sim/extscache/omni.kit.pip_archive-0.0.0+4a5123f4.lx64.cp312/pip_prebundle \
+        --upgrade websockets \
+    # ONNX inference support
+    && uv pip install onnxruntime-gpu
+
 # Ports: SSH / Jupyter / Viser / Rerun / WebRTC signal / WebRTC stream
 EXPOSE 8888 22 8012 9876 49100 47998
 
@@ -193,7 +210,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends sudo gosu \
     && chmod 0440 /etc/sudoers.d/dev \
     && find /root -maxdepth 1 -name '.*' ! -name '.' ! -name '..' -exec mv {} /home/dev/ \; \
     && mkdir -p /home/dev/.ssh /home/dev/.cache /home/dev/.npm /home/dev/.local/bin /home/dev/.local/npm/bin /home/dev/.local/npm/lib/node_modules \
-    && chown -R ${USER_UID}:${USER_GID} /isaac-sim /home/dev/.ssh /home/dev/.zshrc /home/dev/.zsh* /home/dev/.antidote* /home/dev/.local /home/dev/.npm 2>/dev/null || true \
+    && chown -R ${USER_UID}:${USER_GID} /home/dev/.ssh /home/dev/.zshrc /home/dev/.zsh* /home/dev/.antidote* /home/dev/.local /home/dev/.npm 2>/dev/null || true \
     && chmod 700 /home/dev/.ssh \
     && chmod 777 /home/dev/.cache \
     && chmod -R 777 /opt/venv \

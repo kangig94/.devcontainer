@@ -6,7 +6,7 @@
 	],
 	"service": "isaaclab",
 	"runServices": ["isaaclab"],
-	"workspaceFolder": "/home/dev/workspace/IsaacLab",
+	"workspaceFolder": "/home/dev/workspace",
 	"remoteUser": "dev",
 	"overrideCommand": false,
 	"updateRemoteUserUID": false,
@@ -37,6 +37,6 @@
 		"47998": { "label": "WebRTC Stream", "onAutoForward": "notify" }
 	},
 
-	"postCreateCommand": "cd ~/workspace/IsaacLab && ./isaaclab.sh --install",
+	"postCreateCommand": "",
 	"shutdownAction": "none"
 }

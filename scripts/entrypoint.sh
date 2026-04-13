@@ -94,6 +94,15 @@ configure_npm_env() {
     esac
 }
 
+# Fix Isaac Sim permissions for non-root users (one-time, ~30s)
+# Isaac Sim NGC image owns files as isaac-sim:isaac-sim (uid 1234, 750 dirs)
+if [ -d /isaac-sim ] && [ ! -f /isaac-sim/.perms-fixed ]; then
+    echo "[entrypoint] Fixing /isaac-sim permissions for dev user..."
+    chmod -R a+rX /isaac-sim
+    touch /isaac-sim/.perms-fixed
+    echo "[entrypoint] Done."
+fi
+
 # Install CA certs if CERT_DIR is set and contains .crt files
 if [ -n "$CERT_DIR" ] && ls "${CERT_DIR}"/*.crt 1>/dev/null 2>&1; then
     if [ "$(id -u)" = "0" ]; then
