@@ -341,8 +341,6 @@ make up-isaaclab             # Start container (works on local and server)
 make down-isaaclab           # Stop container
 make shell-isaaclab          # Access shell
 make sim                     # Launch Isaac Sim GUI (requires display)
-make up-isaaclab-multinode   # Start with NCCL (distributed training)
-make down-isaaclab-multinode # Stop multinode container
 ```
 
 ### Training

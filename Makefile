@@ -1,4 +1,4 @@
-.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root build-isaaclab up-isaaclab down-isaaclab shell-isaaclab sim up-isaaclab-multinode down-isaaclab-multinode shell-isaaclab-multinode build-conda up-conda build-conda-root up-conda-root help
+.PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root build-isaaclab up-isaaclab down-isaaclab shell-isaaclab sim up-isaaclab-multinode down-isaaclab-multinode shell-isaaclab-multinode build-conda up-conda build-conda-root up-conda-root build-ppocr up-ppocr down-ppocr shell-ppocr help
 
 # Auto-detect UID/GID for runtime (exported: compose files reference these)
 export USER_UID := $(shell id -u)
@@ -9,13 +9,17 @@ export IMAGE_SUFFIX := -$(USERNAME)
 
 # ML-specific versions (NOT exported: only used in ML targets via ML_ENV prefix)
 py ?= 3.12
-export PYTHON_VERSION := $(py)
-# Convert to tag format: 3.12 → py312, 3.10 → py310
-export PY_TAG := py$(subst .,,$(py))
+torch ?= 2.9.1
+cu ?= 128
 
-# CUDA version for PaddlePaddle wheel: use `cu=126` to set (default: 126)
-cu ?= 126
-export CUDA_TAG := cu$(cu)
+PYTHON_VERSION := $(py)
+PY_TAG := py$(subst .,,$(py))
+TORCH_VERSION := $(torch)
+CUDA_TAG := cu$(cu)
+MAX_JOBS := $(shell echo $$(( $(shell nproc) / 2 )))
+
+# Prefix for ML targets to pass version vars to compose
+ML_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=$(CUDA_TAG) MAX_JOBS=$(MAX_JOBS)
 
 
 # Project name is now defined in compose/docker-compose.yml (name: devcontainer)
@@ -32,10 +36,11 @@ help:
 	@echo ""
 	@echo "Version settings:"
 	@echo "  py=3.12 (default)     -> image: py312-..."
-	@echo "  cu=126 (default)      -> image: ...-cu126-..."
+	@echo "  torch=2.9.1 (default) -> image: ...-2.9.1-..."
+	@echo "  cu=128 (default)      -> image: ...-cu128-..."
 	@echo ""
 	@echo "Example:"
-	@echo "  make build py=3.10 cu=123"
+	@echo "  make build py=3.10 torch=2.5.1 cu=124"
 	@echo ""
 	@echo "Local development (mounts Git credentials, OpenCode auth, etc.):"
 	@echo "  make build-local   - Build container (with local-only mounts)"
@@ -60,6 +65,12 @@ help:
 	@echo "  make up-root       - Start root container"
 	@echo "  make down-root     - Stop root container"
 	@echo "  make shell-root    - Access root container shell"
+	@echo ""
+	@echo "PaddleOCR (cu126):"
+	@echo "  make build-ppocr   - Build PaddleOCR image"
+	@echo "  make up-ppocr      - Start PaddleOCR container"
+	@echo "  make down-ppocr    - Stop PaddleOCR container"
+	@echo "  make shell-ppocr   - Access PaddleOCR shell"
 	@echo ""
 	@echo "Conda variants:"
 	@echo "  make build-conda      - Build conda-based user image"
@@ -158,6 +169,22 @@ build-conda-root:
 
 up-conda-root:
 	IMAGE_NAME=conda-torch BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
+
+# ============================================
+# PaddleOCR commands
+# ============================================
+
+build-ppocr:
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml build $(BUILD_FLAGS)
+
+up-ppocr:
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml up -d
+
+down-ppocr:
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml down
+
+shell-ppocr:
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml exec -u dev lab zsh
 
 # ============================================
 # Multi-node training commands
