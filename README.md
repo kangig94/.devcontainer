@@ -4,6 +4,9 @@ A development environment for general-purpose ML research and experiments.
 
 **Base Image**: `<your-registry>/uv-torch:py312-2.9.1-cu128`
 
+> **Prerequisites**: `compose/.env` must exist before any `make` command.
+> Copy the sample and edit it: `cp compose/.env.sample compose/.env`
+
 ## Quick Start
 
 ### 1. Configure Environment
