@@ -6,7 +6,7 @@ services:
     image: ${DOCKER_REGISTRY:-your-registry}/ppocr:${PY_TAG:-py312}-cu126${IMAGE_SUFFIX:--dev}
     build:
       context: ../..
-      dockerfile: .devcontainer/Dockerfile.ppocr
+      dockerfile: .devcontainer/ppocr/Dockerfile
       target: ${BUILD_TARGET:-user}
       args:
         PYTHON_VERSION: ${PYTHON_VERSION:-3.12}

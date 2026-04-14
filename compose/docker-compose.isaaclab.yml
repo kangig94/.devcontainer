@@ -6,7 +6,7 @@ services:
     image: ${DOCKER_REGISTRY:-local}/isaaclab:py${PYTHON_VERSION:-312}
     build:
       context: ../..
-      dockerfile: .devcontainer/Dockerfile.isaaclab
+      dockerfile: .devcontainer/isaaclab/Dockerfile
       target: ${BUILD_TARGET:-user}
       network: host
       args:
