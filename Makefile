@@ -9,17 +9,14 @@ export IMAGE_SUFFIX := -$(USERNAME)
 
 # ML-specific versions (NOT exported: only used in ML targets via ML_ENV prefix)
 py ?= 3.12
-torch ?= 2.9.1
-cu ?= 128
+export PYTHON_VERSION := $(py)
+# Convert to tag format: 3.12 → py312, 3.10 → py310
+export PY_TAG := py$(subst .,,$(py))
 
-PYTHON_VERSION := $(py)
-PY_TAG := py$(subst .,,$(py))
-TORCH_VERSION := $(torch)
-CUDA_TAG := cu$(cu)
-MAX_JOBS := $(shell echo $$(( $(shell nproc) / 2 )))
+# CUDA version for PaddlePaddle wheel: use `cu=126` to set (default: 126)
+cu ?= 126
+export CUDA_TAG := cu$(cu)
 
-# Prefix for ML targets to pass version vars to compose
-ML_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=$(CUDA_TAG) MAX_JOBS=$(MAX_JOBS)
 
 # Project name is now defined in compose/docker-compose.yml (name: devcontainer)
 # No need for -p flag - compose file takes precedence
@@ -35,11 +32,10 @@ help:
 	@echo ""
 	@echo "Version settings:"
 	@echo "  py=3.12 (default)     -> image: py312-..."
-	@echo "  torch=2.9.1 (default) -> image: ...-2.9.1-..."
-	@echo "  cu=128 (default)      -> image: ...-cu128-..."
+	@echo "  cu=126 (default)      -> image: ...-cu126-..."
 	@echo ""
 	@echo "Example:"
-	@echo "  make build py=3.10 torch=2.5.1 cu=124"
+	@echo "  make build py=3.10 cu=123"
 	@echo ""
 	@echo "Local development (mounts Git credentials, OpenCode auth, etc.):"
 	@echo "  make build-local   - Build container (with local-only mounts)"
