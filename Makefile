@@ -83,9 +83,6 @@ help:
 	@echo "  make sim                     - Launch Isaac Sim GUI (requires display)"
 	@echo "  make down-isaaclab           - Stop container"
 	@echo "  make shell-isaaclab          - Access container shell"
-	@echo "  make up-isaaclab-multinode   - Start with NCCL (distributed training)"
-	@echo "  make down-isaaclab-multinode - Stop multinode container"
-	@echo "  First run: isaaclab.sh --install inside container"
 	@echo ""
 # ============================================
 # Local development commands (with local mounts)
@@ -101,7 +98,7 @@ down-local:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml down
 
 shell-local:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml exec -u dev ml-workspace zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml exec -u dev lab zsh
 
 # Alias for local (default)
 build: build-local
@@ -123,7 +120,7 @@ down-server:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
 
 shell-server:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec -u dev ml-workspace zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec -u dev lab zsh
 
 # Build and run with current user in one command
 run: build up shell
@@ -142,7 +139,7 @@ down-root:
 	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
 
 shell-root:
-	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec ml-workspace zsh
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec lab zsh
 
 # ============================================
 # Multi-node training commands
@@ -158,7 +155,7 @@ down-multinode:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
 
 shell-multinode:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec -u $(USERNAME) ml-training zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec -u $(USERNAME) lab zsh
 
 # Multi-node as root (for SSH-based DeepSpeed launcher)
 build-multinode-root:
@@ -171,39 +168,29 @@ down-multinode-root:
 	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
 
 shell-multinode-root:
-	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec ml-training zsh
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec lab zsh
 
 # ============================================
 # Isaac Lab (Isaac Sim + Newton)
 # ============================================
 
-ISAACLAB_COMPOSE_FLAGS := --env-file compose/.env --env-file compose/.env.isaaclab
-
 build-isaaclab:
-	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.build.yml build $(BUILD_FLAGS)
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml build $(BUILD_FLAGS)
 
 sim:
 	xhost +local: > /dev/null 2>&1
-	docker exec -u dev isaaclab-isaaclab-1 /isaac-sim/isaac-sim.sh
+	docker exec -u dev isaaclab-lab-1 /isaac-sim/isaac-sim.sh
 
 up-isaaclab:
-	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml up -d
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml up -d
 
 down-isaaclab:
-	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml down
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml down
 
 shell-isaaclab:
-	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml exec -u dev isaaclab zsh
+	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec -u dev lab zsh
 
-# ============================================
-# Isaac Lab Multi-Node (distributed training)
-# ============================================
-
-up-isaaclab-multinode:
-	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.multinode.yml up -d
-
-down-isaaclab-multinode:
-	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.multinode.yml down
-
-shell-isaaclab-multinode:
-	docker compose $(ISAACLAB_COMPOSE_FLAGS) -f compose/docker-compose.isaaclab.yml -f compose/docker-compose.isaaclab.multinode.yml exec -u dev isaaclab zsh
+# Isaac Lab multi-node (same stack, NCCL env already in overlay)
+up-isaaclab-multinode: up-isaaclab
+down-isaaclab-multinode: down-isaaclab
+shell-isaaclab-multinode: shell-isaaclab

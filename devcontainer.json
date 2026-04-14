@@ -1,8 +1,8 @@
 {
 	"name": "ML Research & Experiments",
 	"dockerComposeFile": ["compose/docker-compose.yml", "compose/docker-compose.local.yml"],
-	"service": "ml-workspace",
-	"runServices": ["ml-workspace"],
+	"service": "lab",
+	"runServices": ["lab"],
 	"workspaceFolder": "/home/dev/workspace",
 	"remoteUser": "dev",
 	"overrideCommand": false,

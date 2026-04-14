@@ -2,7 +2,7 @@
 # Separated to prevent VSCode devcontainer from auto-building
 
 services:
-  ml-workspace:
+  lab:
     build:
       context: ../..
       dockerfile: .devcontainer/Dockerfile

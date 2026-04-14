@@ -1,11 +1,11 @@
 {
 	"name": "Isaac Lab (Isaac Sim + Newton)",
 	"dockerComposeFile": [
-		"compose/docker-compose.isaaclab.yml",
-		"compose/docker-compose.isaaclab.build.yml"
+		"../compose/docker-compose.yml",
+		"../compose/docker-compose.isaaclab.yml"
 	],
-	"service": "isaaclab",
-	"runServices": ["isaaclab"],
+	"service": "lab",
+	"runServices": ["lab"],
 	"workspaceFolder": "/home/dev/workspace",
 	"remoteUser": "dev",
 	"overrideCommand": false,

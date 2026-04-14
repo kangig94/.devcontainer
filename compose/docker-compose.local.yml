@@ -6,7 +6,7 @@
 #   CONTAINER_HOME=/root
 
 services:
-  ml-workspace:
+  lab:
     volumes:
       # Git credentials & config (local only)
       # - ~/.gitconfig:${CONTAINER_HOME:-/home/${USERNAME:-dev}}/.gitconfig

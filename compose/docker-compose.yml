@@ -1,7 +1,7 @@
 name: devcontainer
 
 services:
-  ml-workspace:
+  lab:
     env_file:
       - .env
 
@@ -24,6 +24,9 @@ services:
 
       # Claude plugins cache on local disk (avoid NAS small-file I/O penalty)
       - claude-plugins-cache:${CONTAINER_HOME:-/home/dev}/.claude/plugins/cache
+
+      # X11 display forwarding (no-op if socket doesn't exist)
+      - /tmp/.X11-unix:/tmp/.X11-unix
 
     entrypoint: [ "/entrypoint.sh" ]
 

@@ -41,7 +41,7 @@ See `make help` for all available commands.
 
 1. Open workspace folder (parent of `.devcontainer`) in VS Code
 2. `Ctrl+Shift+P` → "Dev Containers: Attach to Running Container"
-3. Select `devcontainer-ml-workspace-1`
+3. Select `devcontainer-lab-1`
 
 ### 4. Jupyter Lab Access
 

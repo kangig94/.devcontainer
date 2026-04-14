@@ -5,7 +5,7 @@
 #   3. Exec into master and run training script
 
 services:
-  ml-training:
+  lab:
     image: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.9.1}-${CUDA_TAG:-cu128}${IMAGE_SUFFIX:--dev}
 
     # Use host network for NCCL multi-node communication

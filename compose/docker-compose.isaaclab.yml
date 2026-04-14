@@ -1,38 +1,21 @@
+# Isaac Lab overlay — use with: -f docker-compose.yml -f docker-compose.isaaclab.yml
 name: isaaclab
 
 services:
-  isaaclab:
-    env_file:
-      - .env
-      - .env.isaaclab
-
+  lab:
     image: ${DOCKER_REGISTRY:-local}/isaaclab:py${PYTHON_VERSION:-312}
-    working_dir: ${CONTAINER_HOME:-/home/dev}/workspace
+    build:
+      context: ../..
+      dockerfile: .devcontainer/Dockerfile.isaaclab
+      target: ${BUILD_TARGET:-user}
+      network: host
+      args:
+        ISAACSIM_IMAGE: ${ISAACSIM_IMAGE:-nvcr.io/nvidia/isaac-sim:6.0.0-dev2}
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+        ISAACLAB_VERSION: ${ISAACLAB_VERSION:-v3.0.0-beta}
+    network_mode: host
 
-    volumes:
-      # Entrypoint
-      - ../scripts/entrypoint.sh:/entrypoint.sh:ro
-      # Host workspace (includes IsaacLab source)
-      - ${HOST_WORKSPACE_DIR:-../..}:${CONTAINER_HOME:-/home/dev}/workspace
-      - ${HOST_CACHE_DIR:-~/.cache}:${CONTAINER_HOME:-/home/dev}/.cache
-      # Claude CLI
-      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude-dev}:${CONTAINER_HOME:-/home/dev}/.claude
-      - claude-plugins-cache:${CONTAINER_HOME:-/home/dev}/.claude/plugins/cache
-      # Tmux
-      - ${NAS_HOME}/.tmux.conf:${CONTAINER_HOME:-/home/dev}/.tmux.conf:ro
-      # X11 display forwarding (no-op if socket doesn't exist)
-      - /tmp/.X11-unix:/tmp/.X11-unix
-
-    entrypoint: ["/entrypoint.sh"]
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - USER_UID=${USER_UID:-1000}
-      - USER_GID=${USER_GID:-1000}
-      - USERNAME=dev
-      - CONTAINER_HOME=${CONTAINER_HOME:-/home/dev}
-      - WORKSPACE_DIR=${CONTAINER_HOME:-/home/dev}/workspace
-      - CERT_DIR=${CONTAINER_HOME:-/home/dev}/workspace/.devcontainer
-      - RUN_AS_ROOT=${RUN_AS_ROOT:-false}
       - VIRTUAL_ENV=/opt/venv
       - UV_EXTRA_INDEX_URL=https://pypi.nvidia.com
       - UV_INDEX_STRATEGY=unsafe-best-match
@@ -43,20 +26,6 @@ services:
       - PRIVACY_CONSENT=Y
       # Display forwarding for Isaac Sim GUI (ignored if DISPLAY is unset)
       - DISPLAY=${DISPLAY:-}
-
-    command: ["zsh", "-lc", "jupyter lab &> /tmp/jupyter.log & exec zsh -l"]
-
-    stdin_open: true
-    tty: true
-    ipc: host
-    runtime: nvidia
-    network_mode: host
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-
-volumes:
-  claude-plugins-cache:
+      # NCCL multi-node (harmless when single-node)
+      - NCCL_SOCKET_IFNAME=^docker0,lo
+      - NCCL_IB_DISABLE=1
