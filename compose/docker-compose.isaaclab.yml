@@ -16,7 +16,7 @@ services:
       - ${HOST_WORKSPACE_DIR:-../..}:${CONTAINER_HOME:-/home/dev}/workspace
       - ${HOST_CACHE_DIR:-~/.cache}:${CONTAINER_HOME:-/home/dev}/.cache
       # Claude CLI
-      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}:${CONTAINER_HOME:-/home/dev}/.claude
+      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude-dev}:${CONTAINER_HOME:-/home/dev}/.claude
       - claude-plugins-cache:${CONTAINER_HOME:-/home/dev}/.claude/plugins/cache
       # Tmux
       - ${NAS_HOME}/.tmux.conf:${CONTAINER_HOME:-/home/dev}/.tmux.conf:ro
