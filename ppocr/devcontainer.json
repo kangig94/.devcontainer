@@ -1,0 +1,38 @@
+{
+	"name": "PaddleOCR (cu126)",
+	"dockerComposeFile": [
+		"../compose/docker-compose.yml",
+		"../compose/docker-compose.ppocr.yml"
+	],
+	"service": "lab",
+	"runServices": ["lab"],
+	"workspaceFolder": "/home/dev/workspace",
+	"remoteUser": "dev",
+	"overrideCommand": false,
+	"updateRemoteUserUID": false,
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-toolsai.jupyter",
+				"ms-azuretools.vscode-docker"
+			],
+			"settings": {
+				"python.defaultInterpreterPath": "/opt/venv/bin/python",
+				"terminal.integrated.defaultProfile.linux": "zsh",
+				"git.autorefresh": false,
+				"python.terminal.activateEnvironment": false
+			}
+		}
+	},
+
+	"forwardPorts": [8888],
+	"portsAttributes": {
+		"8888": { "label": "Jupyter Lab", "onAutoForward": "notify" }
+	},
+
+	"postCreateCommand": "",
+	"shutdownAction": "none"
+}
