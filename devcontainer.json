@@ -29,7 +29,9 @@
 						"source.organizeImports": "explicit"
 					}
 				},
-				"terminal.integrated.defaultProfile.linux": "zsh"
+				"terminal.integrated.defaultProfile.linux": "zsh",
+				"git.autorefresh": false,
+				"python.terminal.activateEnvironment": false
 			}
 		}
 	},

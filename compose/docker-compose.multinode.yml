@@ -17,15 +17,15 @@ services:
       - ../scripts/entrypoint.sh:/entrypoint.sh:ro
 
       # Host mounts (configure in .env, defaults to workspace root)
-      - ${HOST_WORKSPACE_DIR:-../..}:/home/${USERNAME:-dev}/workspace
-      - ${HOST_CACHE_DIR:-~/.cache}:/home/${USERNAME:-dev}/.cache
-      - ${HOST_DATASETS_DIR:-../../datasets}:/home/${USERNAME:-dev}/datasets
+      - ${HOST_WORKSPACE_DIR:-../..}:${CONTAINER_HOME:-/home/dev}/workspace
+      - ${HOST_CACHE_DIR:-~/.cache}:${CONTAINER_HOME:-/home/dev}/.cache
+      - ${HOST_DATASETS_DIR:-../../datasets}:${CONTAINER_HOME:-/home/dev}/datasets
 
       # Claude CLI (session data & config)
-      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}:/home/${USERNAME:-dev}/.claude
+      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude-dev}:${CONTAINER_HOME:-/home/dev}/.claude
 
       # Tmux config
-      - ${NAS_HOME}/.tmux.conf:/home/${USERNAME:-dev}/.tmux.conf
+      - ${NAS_HOME}/.tmux.conf:${CONTAINER_HOME:-/home/dev}/.tmux.conf
 
     entrypoint: [ "/entrypoint.sh" ]
 
@@ -38,9 +38,10 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - USER_UID=${USER_UID:-1000}
       - USER_GID=${USER_GID:-1000}
-      - USERNAME=${USERNAME:-dev}
-      - WORKSPACE_DIR=/home/${USERNAME:-dev}/workspace
-      - CERT_DIR=/home/${USERNAME:-dev}/workspace/.devcontainer
+      - USERNAME=dev
+      - CONTAINER_HOME=${CONTAINER_HOME:-/home/dev}
+      - WORKSPACE_DIR=${CONTAINER_HOME:-/home/dev}/workspace
+      - CERT_DIR=${CONTAINER_HOME:-/home/dev}/workspace/.devcontainer
       - RUN_AS_ROOT=${RUN_AS_ROOT:-false}
       # NCCL settings - exclude docker/loopback interfaces, use external network
       - NCCL_DEBUG=INFO
@@ -65,7 +66,7 @@ services:
               count: all
               capabilities: [ gpu ]
 
-    working_dir: /home/${USERNAME:-dev}/workspace
+    working_dir: ${CONTAINER_HOME:-/home/dev}/workspace
 
     # command: ["zsh"]
     command: [ "zsh", "-lc", "jupyter lab --ip=0.0.0.0 --port=18888 &> /tmp/jupyter.log & exec zsh -l" ]

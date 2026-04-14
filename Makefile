@@ -1,13 +1,13 @@
 .PHONY: build up down shell build-local up-local down-local shell-local build-server up-server down-server shell-server build-root up-root down-root shell-root build-multinode up-multinode down-multinode shell-multinode build-multinode-root up-multinode-root down-multinode-root shell-multinode-root help
 
-# Auto-detect UID/GID for runtime (chmod 777 allows any UID to write to home)
+# Auto-detect UID/GID for runtime (exported: compose files reference these)
 export USER_UID := $(shell id -u)
 export USER_GID := $(shell id -g)
 export USERNAME := dev
 export BUILD_TARGET := user
 export IMAGE_SUFFIX := -$(USERNAME)
 
-# Python version: use `py=3.10` to set (default: 3.12)
+# ML-specific versions (NOT exported: only used in ML targets via ML_ENV prefix)
 py ?= 3.12
 export PYTHON_VERSION := $(py)
 # Convert to tag format: 3.12 → py312, 3.10 → py310
@@ -17,10 +17,11 @@ export PY_TAG := py$(subst .,,$(py))
 cu ?= 126
 export CUDA_TAG := cu$(cu)
 
+
 # Project name is now defined in compose/docker-compose.yml (name: devcontainer)
 # No need for -p flag - compose file takes precedence
 # Use `make build verbose=1` for detailed build logs
-COMPOSE_FLAGS := --env-file .env
+COMPOSE_FLAGS := --env-file compose/.env
 BUILD_FLAGS := $(if $(verbose),--progress=plain,)
 
 # Default target: show help
@@ -77,16 +78,16 @@ help:
 # ============================================
 
 build-local:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-local:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml up -d
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml up -d
 
 down-local:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml down
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml down
 
 shell-local:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml exec -u dev ml-workspace zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml exec -u dev ml-workspace zsh
 
 # Alias for local (default)
 build: build-local
@@ -99,16 +100,16 @@ shell: shell-local
 # ============================================
 
 build-server:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-server:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
 
 down-server:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
 
 shell-server:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec -u dev ml-workspace zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec -u dev ml-workspace zsh
 
 # Build and run with current user in one command
 run: build up shell
@@ -118,42 +119,42 @@ run: build up shell
 # ============================================
 
 build-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
 
 down-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
 
 shell-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec ml-workspace zsh
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec ml-workspace zsh
 
 # ============================================
 # Multi-node training commands
 # ============================================
 
 build-multinode:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-multinode:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
 
 down-multinode:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
 
 shell-multinode:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec -u $(USERNAME) ml-training zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec -u $(USERNAME) ml-training zsh
 
 # Multi-node as root (for SSH-based DeepSpeed launcher)
 build-multinode-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-multinode-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
 
 down-multinode-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
 
 shell-multinode-root:
-	BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec ml-training zsh
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec ml-training zsh
