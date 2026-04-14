@@ -17,7 +17,7 @@ services:
       - ${HOST_DATASETS_DIR:-../../datasets}:${CONTAINER_HOME:-/home/dev}/datasets
 
       # Claude CLI (session data & config)
-      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude}:${CONTAINER_HOME:-/home/dev}/.claude
+      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude-dev}:${CONTAINER_HOME:-/home/dev}/.claude
 
       # Tmux config
       - ${NAS_HOME}/.tmux.conf:${CONTAINER_HOME:-/home/dev}/.tmux.conf

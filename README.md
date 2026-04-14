@@ -132,7 +132,7 @@ python train.py ...
 - NAS workspace: `${NAS_HOME}/workspace` → `${CONTAINER_HOME}/workspace`
 - NAS cache: `${NAS_HOME}/.cache` → `${CONTAINER_HOME}/.cache`
 - NAS datasets: `${NAS_HOME}/datasets` → `${CONTAINER_HOME}/datasets`
-- Claude session: `${NAS_HOME}/.claude` → `${CONTAINER_HOME}/.claude`
+- Claude session: `${NAS_HOME}/.claude-dev` → `${CONTAINER_HOME}/.claude`
 - Tmux config: `${NAS_HOME}/.tmux.conf` → `${CONTAINER_HOME}/.tmux.conf`
 
 ### Local Only (docker-compose.local.yml)
