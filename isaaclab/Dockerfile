@@ -44,37 +44,35 @@ ENV ISAACLAB_PATH=/opt/isaaclab \
     ACCEPT_EULA=Y \
     PRIVACY_CONSENT=Y
 
-# isaacsim 6.0.0 from NVIDIA PyPI mirror into the inherited /opt/venv.
-# Flags explained:
-#   --extra-index-url       NVIDIA mirror hosts the isaacsim-* wheels
-#   --index-strategy        let uv mix nvidia mirror with default PyPI
-#   --no-build-isolation    avoid uv re-fetching setuptools/wheel through
-#                           the nvidia mirror (which times out / lacks them)
-#   --prerelease=allow      tinyobjloader 2.0.0rc13 is a pre-release
+# Single RUN, single layer:
+#   1. uv pip install isaacsim 6.0.0 from NVIDIA PyPI mirror into the
+#      inherited /opt/venv. Flags:
+#        --extra-index-url     NVIDIA mirror hosts the isaacsim-* wheels
+#        --index-strategy      let uv mix nvidia mirror with default PyPI
+#        --no-build-isolation  avoid uv fetching setuptools/wheel through
+#                              the nvidia mirror (times out / lacks them)
+#        --prerelease=allow    tinyobjloader 2.0.0rc13 is a pre-release
+#   2. Accept the Omniverse EULA at build time. ACCEPT_EULA env alone is
+#      not enough — the kit kernel reads the answer from stdin on first
+#      `import isaacsim`. Feeding "Yes" once persists the accepted state
+#      so runtime imports skip the prompt.
+#   3. Clone IsaacLab at ${ISAACLAB_VERSION} (PyPI publishes only stable
+#      2.3.x; v3.0.0-beta is git-only) and editable-install every submodule.
+#      ./isaaclab.sh --install auto-detects the PyPI isaacsim through
+#      extract_isaacsim_path -> import isaacsim -> os.environ['ISAAC_PATH']
+#      and "Repointed N prebundled package(s)" rewires Isaac Sim's
+#      hash-suffixed extscache paths to live inside /opt/venv/site-packages.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install \
         --extra-index-url https://pypi.nvidia.com \
         --index-strategy unsafe-best-match \
         --no-build-isolation \
         --prerelease=allow \
-        "isaacsim[all,extscache]==6.0.0"
-
-# First `import isaacsim` normally prompts on stdin for the Omniverse
-# EULA. ACCEPT_EULA env var alone is not enough — the kit kernel reads
-# the answer from stdin. Feed "Yes" once at build time so the accepted
-# state is persisted in the image, and runtime imports skip the prompt.
-RUN echo "Yes" | python -c "import isaacsim" 2>&1 | tail -3
-
-# Isaac Lab: PyPI publishes only stable 2.3.x; v3.0.0-beta is git-only.
-# Clone source at the desired tag and editable-install all submodules.
-# `./isaaclab.sh --install` auto-detects the venv-installed isaacsim via
-# extract_isaacsim_path -> import isaacsim -> os.environ['ISAAC_PATH'],
-# then "Repointed N prebundled package(s)" rewires Isaac Sim's
-# hash-suffixed extscache paths to live inside /opt/venv/site-packages.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    git clone --depth 1 --branch ${ISAACLAB_VERSION} \
+        "isaacsim[all,extscache]==6.0.0" \
+ && echo "Yes" | python -c "import isaacsim" 2>&1 | tail -3 \
+ && git clone --depth 1 --branch ${ISAACLAB_VERSION} \
         https://github.com/isaac-sim/IsaacLab.git ${ISAACLAB_PATH} \
-    && cd ${ISAACLAB_PATH} && ./isaaclab.sh --install
+ && cd ${ISAACLAB_PATH} && ./isaaclab.sh --install
 
 # Ports: SSH / Jupyter / Viser / Rerun / WebRTC signal / WebRTC stream
 EXPOSE 8888 22 8012 9876 49100 47998
