@@ -92,6 +92,16 @@ ENV UV_LINK_MODE=copy \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# nvidia/cuda base sets LD_LIBRARY_PATH=/usr/local/cuda/lib64 which contains
+# libcublas.so.12.9.x. The torch cu128 wheel installs its own 12.8.x cuBLAS
+# under .../site-packages/nvidia/cublas/lib/. Despite NVIDIA's same-major
+# forward-compat policy, the 12.8/12.9 skew breaks cublasSgemmStridedBatched
+# in torch >=2.10 (CUBLAS_STATUS_INVALID_VALUE on every torch.bmm). Prepend
+# the wheel's cuBLAS so torch loads the matched lib first, while keeping
+# /usr/local/cuda/lib64 in the path so user-built custom CUDA C++ extensions
+# linked against the system CUDA toolkit still resolve at runtime.
+ENV LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH}
+
 WORKDIR /root
 
 # ------------------------------------------------------------

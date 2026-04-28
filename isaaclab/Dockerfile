@@ -17,12 +17,26 @@ FROM ${BASE_IMAGE}
 
 USER root
 
-# IsaacLab's ./isaaclab.sh --install shells out to `apt-get install
-# cmake build-essential` if cmake is absent. Bake them so the install
-# never tries `sudo apt` (which fails under any sandbox with
-# no_new_privileges, e.g. uv build hooks or Claude bash sandbox).
+# Two layers of system deps the ubuntu/cuda base lacks:
+#  1. cmake/build-essential — IsaacLab's ./isaaclab.sh --install runs
+#     `sudo apt install cmake build-essential` if cmake is missing,
+#     which fails under no_new_privileges sandboxes.
+#  2. X11/OpenGL/Vulkan libs — Isaac Sim's PhysX GPU Foundation needs a
+#     working graphics stack to initialize even in headless training.
+#     Without these, you see:
+#       libXt.so.6 / libGLU.so.1: cannot open shared object file
+#       Vulkan ERROR_INCOMPATIBLE_DRIVER
+#       PhysXFoundation: Unable to create GPU Foundation
+#       -> torch.bmm raises CUBLAS_STATUS_INVALID_VALUE at first reset.
+#     The NGC isaac-sim image bakes all of these; our slim cuda base
+#     does not.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake build-essential \
+        libxt6 libxrandr2 libxext6 libxi6 libxxf86vm1 \
+        libxinerama1 libxcursor1 libxss1 libxtst6 libxkbfile1 \
+        libfontconfig1 libgomp1 \
+        libgl1 libglu1-mesa libegl1 libgles2 \
+        libvulkan1 mesa-vulkan-drivers \
     && rm -rf /var/lib/apt/lists/*
 
 ARG ISAACLAB_VERSION="v3.0.0-beta"
