@@ -1,242 +1,66 @@
 # syntax=docker/dockerfile:1.6
-ARG ISAACSIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.0.0-dev2
-FROM ${ISAACSIM_IMAGE} AS base
+#
+# Isaac Lab variant — built on top of the base uv-torch image.
+#
+# Base provides: ubuntu24.04 + CUDA 12.9.1 + uv + torch 2.10.0 +
+# zsh/claude/codex/gemini + system tooling + /opt/venv (chmod 777).
+# This layer adds isaacsim (NVIDIA PyPI) and IsaacLab (git source).
+#
+# Replaces the legacy NGC nvcr.io/nvidia/isaac-sim:6.0.0-dev2 base.
+# Removes the recursive chmod /isaac-sim layer (~10 min build), the
+# 17-line PYTHONPATH/LD_LIBRARY_PATH ENV block, the LD_PRELOAD line,
+# and the websockets-version manual upgrade hack — every one of those
+# lived only because the NGC tarball wasn't a venv-managed package.
 
-ARG DEBIAN_FRONTEND=noninteractive
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
 USER root
 
-# Isaac Sim files are owned by isaac-sim:isaac-sim (uid 1234, 750 dirs).
-# Ownership is transferred to dev in the user target below.
-
-# ------------------------------------------------------------
-# Layer 1: System packages (Isaac Sim image is minimal)
-# ------------------------------------------------------------
+# IsaacLab's ./isaaclab.sh --install shells out to `apt-get install
+# cmake build-essential` if cmake is absent. Bake them so the install
+# never tries `sudo apt` (which fails under any sandbox with
+# no_new_privileges, e.g. uv build hooks or Claude bash sandbox).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-venv python3-dev python3-setuptools \
-    nano tree ca-certificates wget git pkg-config tmux unzip net-tools ncurses-term \
-    build-essential g++ libstdc++6 libgcc-s1 ninja-build cmake make \
-    openssh-server openssh-client pdsh \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/run/sshd /root/.ssh \
-    && chmod 700 /root/.ssh \
-    && ssh-keygen -A \
-    && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config \
-    && echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config \
-    && echo "PasswordAuthentication no" >> /etc/ssh/sshd_config \
-    && echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config \
-    && echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
+        cmake build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# ------------------------------------------------------------
-# Layer 2: zsh + antidote
-# ------------------------------------------------------------
-RUN curl -fsSL \
-    "https://gist.githubusercontent.com/kangig94/b418ec255b0c9ad73b986459796801fd/raw/install_zsh_antidote_docker.sh" \
-    | bash
-
-# ------------------------------------------------------------
-# Layer 3: Node.js + Claude Code + Codex + Gemini
-# ------------------------------------------------------------
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -kfsSL https://claude.ai/install.sh | bash \
-    && CLAUDE_VER=$(ls /root/.local/share/claude/versions/) \
-    && mkdir -p /opt/claude \
-    && mv /root/.local/share/claude/versions/${CLAUDE_VER} /opt/claude/ \
-    && chmod -R 755 /opt/claude \
-    && rm -rf /root/.local/share/claude /root/.local/bin/claude /root/.local/bin/env /root/.local/bin/env.fish \
-    && ln -s /opt/claude/${CLAUDE_VER} /usr/local/bin/claude \
-    && sed -i 's/^\. "\$HOME\/\.local\/bin\/env"$/[ -f "\$HOME\/.local\/bin\/env" ] \&\& . "\$HOME\/.local\/bin\/env"/' /root/.bashrc /root/.profile 2>/dev/null || true \
-    && npm install -g @openai/codex \
-    && npm install -g @google/gemini-cli
-
-ENV PATH="/root/.local/bin:/root/.local/npm/bin:${PATH}"
-
-# ------------------------------------------------------------
-# Layer 4: uv + Python venv
-#   The venv inherits Isaac Sim's bundled packages via PYTHONPATH
-#   (PyTorch, Warp, MuJoCo, Newton are all in pip_prebundle dirs).
-#   Only lightweight packages (jupyterlab, etc.) go in the venv.
-# ------------------------------------------------------------
-ARG PYTHON_VERSION="3.12"
-ENV VENV_PATH=/opt/venv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && uv venv ${VENV_PATH} --python ${PYTHON_VERSION} \
-    && echo 'for f in /etc/profile.d/*.sh; do [ -r "$f" ] && . "$f"; done' >> /etc/zsh/zshrc \
-    && cat > /etc/profile.d/shell-aliases.sh <<'ALIASES'
-# uv wrapper: `uv a` or `uv activate` to source .venv/bin/activate
-uv() {
-    if [ "$1" = "a" ] || [ "$1" = "activate" ]; then
-        if [ -f ".venv/bin/activate" ]; then
-            source .venv/bin/activate
-        else
-            echo "No .venv/bin/activate in $(pwd)"
-            return 1
-        fi
-    else
-        command uv "$@"
-    fi
-}
-# Claude Code worktree launcher
-ccw() {
-    local branch_name
-    if [ -z "$1" ]; then
-        branch_name="worktree-$(date +%Y%m%d-%H%M%S)"
-    else
-        branch_name="$1"
-    fi
-    git worktree add "../$branch_name" -b "$branch_name" && \
-    cd "../$branch_name" || return 1
-    claude --model opusplan --permission-mode plan
-}
-# Explicit wrapper for bypassing approval prompts
-alias cc='claude --dangerously-skip-permissions'
-ALIASES
-
-ENV PATH="${VENV_PATH}/bin:${PATH}"
-ENV VIRTUAL_ENV=${VENV_PATH}
-ENV UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    TERM=xterm-256color
-
-# Isaac Sim bundled packages: expose via PYTHONPATH so the venv python can find them.
-# These paths come from /isaac-sim/setup_python_env.sh.
-ENV ISAAC_PATH=/isaac-sim
-ENV CARB_APP_PATH=/isaac-sim/kit
-ENV EXP_PATH=/isaac-sim/apps
-# PYTHONPATH mirrors /isaac-sim/setup_python_env.sh + extscache entries for warp/numpy
-ENV PYTHONPATH="${PYTHONPATH}:\
-/isaac-sim/kit/python/lib/python3.12:\
-/isaac-sim/kit/python/lib/python3.12/site-packages:\
-/isaac-sim/python_packages:\
-/isaac-sim/exts/isaacsim.simulation_app:\
-/isaac-sim/kit/kernel/py:\
-/isaac-sim/kit/plugins/bindings-python:\
-/isaac-sim/exts/isaacsim.robot_motion.lula/pip_prebundle:\
-/isaac-sim/exts/isaacsim.robot_motion.cumotion/pip_prebundle:\
-/isaac-sim/exts/isaacsim.asset.exporter.urdf/pip_prebundle:\
-/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle:\
-/isaac-sim/exts/omni.isaac.core_archive/pip_prebundle:\
-/isaac-sim/exts/omni.isaac.ml_archive/pip_prebundle:\
-/isaac-sim/exts/omni.pip.compute/pip_prebundle:\
-/isaac-sim/exts/omni.pip.cloud/pip_prebundle:\
-/isaac-sim/extscache/omni.kit.pip_archive-0.0.0+4a5123f4.lx64.cp312/pip_prebundle:\
-/isaac-sim/extscache/omni.warp.core-1.12.0+lx64"
-ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:\
-/isaac-sim:\
-/isaac-sim/kit:\
-/isaac-sim/kit/kernel/plugins:\
-/isaac-sim/kit/libs/iray:\
-/isaac-sim/kit/plugins:\
-/isaac-sim/kit/plugins/bindings-python:\
-/isaac-sim/kit/plugins/carb_gfx:\
-/isaac-sim/kit/plugins/rtx:\
-/isaac-sim/kit/plugins/gpu.foundation"
-ENV LD_PRELOAD=/isaac-sim/kit/libcarb.so
-
-WORKDIR /root
-
-# Layer 5: Lightweight venv packages only (heavy deps come from Isaac Sim)
-RUN uv pip install --upgrade pip "setuptools<82.0.0" wheel
-
-# Override file: usd-core 25.8 has a Tf C++ binding bug on Python 3.12
-RUN echo "usd-core==25.5" > /etc/isaaclab-overrides.txt
-
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/root/.cache/pip \
-    uv pip install jupyterlab \
-    && mkdir -p /etc/jupyter && cat > /etc/jupyter/jupyter_server_config.py <<'EOF'
-import os
-c = get_config()
-c.ServerApp.ip = "0.0.0.0"
-c.ServerApp.port = 8888
-c.ServerApp.open_browser = False
-c.ServerApp.allow_remote_access = True
-c.ServerApp.token = ""
-c.ServerApp.password = ""
-c.ServerApp.disable_check_xsrf = True
-c.ServerApp.root_dir = os.environ.get("HOME", "/root")
-c.ServerApp.allow_root = os.getuid() == 0
-EOF
-
-# ------------------------------------------------------------
-# Layer 6: IsaacLab + runtime patches
-# ------------------------------------------------------------
 ARG ISAACLAB_VERSION="v3.0.0-beta"
-ENV ISAACLAB_PATH=/opt/isaaclab
+ENV ISAACLAB_PATH=/opt/isaaclab \
+    ACCEPT_EULA=Y \
+    PRIVACY_CONSENT=Y
 
+# isaacsim 6.0.0 from NVIDIA PyPI mirror into the inherited /opt/venv.
+# Flags explained:
+#   --extra-index-url       NVIDIA mirror hosts the isaacsim-* wheels
+#   --index-strategy        let uv mix nvidia mirror with default PyPI
+#   --no-build-isolation    avoid uv re-fetching setuptools/wheel through
+#                           the nvidia mirror (which times out / lacks them)
+#   --prerelease=allow      tinyobjloader 2.0.0rc13 is a pre-release
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/root/.cache/pip \
+    uv pip install \
+        --extra-index-url https://pypi.nvidia.com \
+        --index-strategy unsafe-best-match \
+        --no-build-isolation \
+        --prerelease=allow \
+        "isaacsim[all,extscache]==6.0.0"
+
+# First `import isaacsim` normally prompts on stdin for the Omniverse
+# EULA. ACCEPT_EULA env var alone is not enough — the kit kernel reads
+# the answer from stdin. Feed "Yes" once at build time so the accepted
+# state is persisted in the image, and runtime imports skip the prompt.
+RUN echo "Yes" | python -c "import isaacsim" 2>&1 | tail -3
+
+# Isaac Lab: PyPI publishes only stable 2.3.x; v3.0.0-beta is git-only.
+# Clone source at the desired tag and editable-install all submodules.
+# `./isaaclab.sh --install` auto-detects the venv-installed isaacsim via
+# extract_isaacsim_path -> import isaacsim -> os.environ['ISAAC_PATH'],
+# then "Repointed N prebundled package(s)" rewires Isaac Sim's
+# hash-suffixed extscache paths to live inside /opt/venv/site-packages.
+RUN --mount=type=cache,target=/root/.cache/uv \
     git clone --depth 1 --branch ${ISAACLAB_VERSION} \
         https://github.com/isaac-sim/IsaacLab.git ${ISAACLAB_PATH} \
-    && cd ${ISAACLAB_PATH} && ./isaaclab.sh --install \
-    # Viser requires websockets 13+, Isaac Sim bundles 12.0
-    && pip install --target /isaac-sim/extscache/omni.kit.pip_archive-0.0.0+4a5123f4.lx64.cp312/pip_prebundle \
-        --upgrade websockets \
-    # ONNX inference support
-    && uv pip install onnxruntime-gpu
-
-# Bake /isaac-sim full read/write/traverse permissions into an image layer.
-#
-# Why a+rwX (not a+rX):
-#   Read-only (a+rX) lets dev user import IsaacSim libs but the runtime needs
-#   to WRITE into /isaac-sim/kit/cache (DerivedDataCache, shadercache) and
-#   /isaac-sim/kit/data (user.config.json). Without write access the omni
-#   datastore retries 256 times to acquire an exclusive lock, fails, and the
-#   first omni.client.stat() call on a USD asset hangs indefinitely while it
-#   waits for the missing datastore.
-#
-# Why bake at build time (not entrypoint):
-#   /isaac-sim is ~28GB; recursive chmod takes 5-15 minutes single-threaded.
-#   Doing it once in an image layer means subsequent containers start instantly.
-#   The .perms-fixed marker tells entrypoint.sh to skip its fallback chmod.
-RUN chmod -R a+rwX /isaac-sim && touch /isaac-sim/.perms-fixed
+    && cd ${ISAACLAB_PATH} && ./isaaclab.sh --install
 
 # Ports: SSH / Jupyter / Viser / Rerun / WebRTC signal / WebRTC stream
 EXPOSE 8888 22 8012 9876 49100 47998
-
-# ============================================================
-# Target: root (run as root user)
-# ============================================================
-FROM base AS root
-
-ENV HOME=/root
-ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.local/npm/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-SHELL ["/usr/bin/zsh", "-lc"]
-CMD ["zsh", "-l"]
-
-# ============================================================
-# Target: user (run as non-root user) - DEFAULT
-# ============================================================
-FROM base AS user
-
-ARG USER_UID=1000
-ARG USER_GID=1000
-
-RUN apt-get update && apt-get install -y --no-install-recommends sudo gosu \
-    && rm -rf /var/lib/apt/lists/* \
-    && (userdel -r $(getent passwd ${USER_UID} | cut -d: -f1) 2>/dev/null || true) \
-    && (groupdel $(getent group ${USER_GID} | cut -d: -f1) 2>/dev/null || true) \
-    && groupadd -g ${USER_GID} dev \
-    && useradd -m -u ${USER_UID} -g ${USER_GID} -s /usr/bin/zsh dev \
-    && echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/dev \
-    && chmod 0440 /etc/sudoers.d/dev \
-    && find /root -maxdepth 1 -name '.*' ! -name '.' ! -name '..' -exec mv {} /home/dev/ \; \
-    && mkdir -p /home/dev/.ssh /home/dev/.cache /home/dev/.npm /home/dev/.local/bin /home/dev/.local/npm/bin /home/dev/.local/npm/lib/node_modules \
-    && chown -R ${USER_UID}:${USER_GID} /home/dev/.ssh /home/dev/.zshrc /home/dev/.zsh* /home/dev/.antidote* /home/dev/.local /home/dev/.npm 2>/dev/null || true \
-    && chmod 700 /home/dev/.ssh \
-    && chmod 777 /home/dev/.cache \
-    && chmod -R 777 /opt/venv \
-    && sed -i 's/compinit/compinit -u/' /home/dev/.zshrc 2>/dev/null || true
-
-WORKDIR /home/dev
-
-ENV HOME=/home/dev
-ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.local/npm/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ENV NPM_CONFIG_PREFIX=/home/dev/.local/npm \
-    NPM_CONFIG_CACHE=/home/dev/.npm
-
-CMD ["zsh", "-l"]

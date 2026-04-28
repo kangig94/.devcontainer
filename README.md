@@ -2,7 +2,7 @@
 
 A development environment for general-purpose ML research and experiments.
 
-**Base Image**: `<your-registry>/uv-torch:py312-2.9.1-cu128`
+**Base Image**: `<your-registry>/uv-torch:py312-2.10.0-cu128`
 
 > **Prerequisites**: `compose/.env` must exist before any `make` command.
 > Copy the sample and edit it: `cp compose/.env.sample compose/.env`
@@ -218,14 +218,14 @@ Master Node                      Worker Nodes
 # 0. Master node: Build and push image
 cd .devcontainer
 make build
-docker push <your-registry>/uv-torch:py312-2.9.1-cu128-dev
+docker push <your-registry>/uv-torch:py312-2.10.0-cu128-dev
 
 # 1. All nodes: Edit docker-compose.multinode.yml (volume paths)
 volumes:
   - /your/nas/path:/home/dev/workspace
 
 # 2. Worker nodes: Pull image
-docker pull <your-registry>/uv-torch:py312-2.9.1-cu128-dev
+docker pull <your-registry>/uv-torch:py312-2.10.0-cu128-dev
 
 # 3. All nodes: Start container
 cd .devcontainer
@@ -275,25 +275,27 @@ SSH_PORT=2222
 
 ## Isaac Lab (Isaac Sim + Newton)
 
-Robotics simulation environment based on Isaac Sim NGC image with uv-managed Python.
+Robotics simulation environment layered on top of the base `uv-torch` image.
+Isaac Sim is installed from the NVIDIA PyPI mirror as a regular venv package
+(no NGC `nvcr.io/nvidia/isaac-sim` base), and Isaac Lab is editable-installed
+from a pinned git tag. This keeps Isaac Sim version bumps to a single
+`uv pip install` line and avoids the 28GB NGC tarball.
 
-**Base Image**: `nvcr.io/nvidia/isaac-sim:6.0.0-dev2`
-**Bundled**: PyTorch 2.10.0, Warp 1.12.0, MuJoCo 3.5.0, Newton 1.0.0
+**Layers**: `nvidia/cuda:12.9.1` → uv-torch base → `isaacsim==6.0.0` (PyPI) +
+Isaac Lab `v3.0.0-beta` (git, editable)
+
+**Bundled at runtime**: PyTorch 2.10.0+cu128, Warp 1.13, MuJoCo, Newton (via
+`isaacsim[all,extscache]`), flash-attn-4, deepspeed.
 
 ### Quick Start
 
 ```bash
 cd .devcontainer
 
-# Build image (first time only)
+# `make build-isaaclab` chains: build-local (base) → build-isaaclab (overlay).
+# IsaacLab is already installed inside the image; no in-container install needed.
 make build-isaaclab
-
-# Start container
 make up-isaaclab
-
-# Install IsaacLab (first time only, inside container)
-make shell-isaaclab
-cd ~/workspace/IsaacLab && ./isaaclab.sh --install
 ```
 
 ### Launch Isaac Sim GUI (local, requires display)
@@ -315,15 +317,15 @@ make sim                     # Launch Isaac Sim GUI (requires display)
 ### Training
 
 ```bash
-# Headless training with Viser visualization (recommended)
+# Headless training (default). Add --viz viser for the web visualizer.
 ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py \
   --task Isaac-Cartpole-Direct-v0
 
-# Training with WebRTC streaming (optional, needs web-viewer container)
+# WebRTC streaming (separate viewer container required)
 ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py \
   --task Isaac-Cartpole-Direct-v0 \
   --livestream 1 \
-  --experience /isaac-sim/apps/isaacsim.exp.full.streaming.kit
+  --experience /opt/isaaclab/apps/isaaclab.python.streaming.kit
 ```
 
 ### Ports (network_mode: host)

@@ -5,7 +5,7 @@ services:
     env_file:
       - .env
 
-    image: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.9.1}-${CUDA_TAG:-cu128}${IMAGE_SUFFIX:--dev}
+    image: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu128}${IMAGE_SUFFIX:--dev}
     working_dir: ${CONTAINER_HOME:-/home/dev}/workspace
     volumes:
       # Entrypoint script (runtime injection)

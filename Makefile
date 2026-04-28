@@ -9,14 +9,17 @@ export IMAGE_SUFFIX := -$(USERNAME)
 
 # ML-specific versions (NOT exported: only used in ML targets via ML_ENV prefix)
 py ?= 3.12
-torch ?= 2.9.1
+torch ?= 2.10.0
 cu ?= 128
 
 PYTHON_VERSION := $(py)
 PY_TAG := py$(subst .,,$(py))
 TORCH_VERSION := $(torch)
 CUDA_TAG := cu$(cu)
-MAX_JOBS := $(shell echo $$(( $(shell nproc) / 2 )))
+# flash-attn / deepspeed source builds use ~4-8GB RAM per job.
+# nproc/2 (was the default) on a 32-core box demanded ~128GB and froze
+# both ing and h9 to a hard reboot. Hold at 2 unless explicitly raised.
+MAX_JOBS ?= 2
 
 # Prefix for ML targets to pass version vars to compose
 ML_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=$(CUDA_TAG) MAX_JOBS=$(MAX_JOBS)
@@ -36,7 +39,7 @@ help:
 	@echo ""
 	@echo "Version settings:"
 	@echo "  py=3.12 (default)     -> image: py312-..."
-	@echo "  torch=2.9.1 (default) -> image: ...-2.9.1-..."
+	@echo "  torch=2.10.0 (default) -> image: ...-2.10.0-..."
 	@echo "  cu=128 (default)      -> image: ...-cu128-..."
 	@echo ""
 	@echo "Example:"
@@ -152,7 +155,7 @@ shell-root:
 # PaddleOCR commands
 # ============================================
 
-build-ppocr:
+build-ppocr: build-local
 	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml build $(BUILD_FLAGS)
 
 up-ppocr:
@@ -168,7 +171,7 @@ shell-ppocr:
 # Multi-node training commands
 # ============================================
 
-build-multinode:
+build-multinode: build-local
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-multinode:
@@ -181,7 +184,7 @@ shell-multinode:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml exec -u $(USERNAME) lab zsh
 
 # Multi-node as root (for SSH-based DeepSpeed launcher)
-build-multinode-root:
+build-multinode-root: build-root
 	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-multinode-root:
@@ -197,21 +200,21 @@ shell-multinode-root:
 # Isaac Lab (Isaac Sim + Newton)
 # ============================================
 
-build-isaaclab:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml build $(BUILD_FLAGS)
+build-isaaclab: build-local
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml build $(BUILD_FLAGS)
 
 sim:
 	xhost +local: > /dev/null 2>&1
 	docker exec -u dev isaaclab-lab-1 /isaac-sim/isaac-sim.sh
 
 up-isaaclab:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml up -d
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml up -d
 
 down-isaaclab:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml down
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml down
 
 shell-isaaclab:
-	docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec -u dev lab zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec -u dev lab zsh
 
 # Isaac Lab multi-node (same stack, NCCL env already in overlay)
 up-isaaclab-multinode: up-isaaclab

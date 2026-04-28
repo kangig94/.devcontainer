@@ -100,14 +100,15 @@ WORKDIR /root
 # Multi-GPU architecture support: A100(8.0), RTX30(8.6), RTX40(8.9), H100(9.0), B100(10.0), RTX50(12.0)
 ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0;10.0;10.3;12.0"
 
-ARG TORCH_VERSION="2.9.1"
+ARG TORCH_VERSION="2.10.0"
 ARG CUDA_TAG="cu128"
 ARG MAX_JOBS=4
 
 RUN uv pip install --upgrade pip setuptools wheel \
-    && uv pip install --no-build-isolation --index-url https://download.pytorch.org/whl/${CUDA_TAG} torch==${TORCH_VERSION} torchvision \
+    && uv pip install --no-build-isolation --index-url https://download.pytorch.org/whl/${CUDA_TAG} torch==${TORCH_VERSION} torchvision torchaudio \
     && uv pip install psutil ninja packaging \
-    && MAX_JOBS=${MAX_JOBS} uv pip install --no-build-isolation deepspeed accelerate flash-attn \
+    && MAX_JOBS=${MAX_JOBS} uv pip install --no-build-isolation deepspeed accelerate \
+    && MAX_JOBS=${MAX_JOBS} uv pip install --no-build-isolation --prerelease=allow flash-attn-4 \
     && uv pip install diffusers transformers peft datasets sentencepiece einops \
     && uv pip install jupyterlab \
     && rm -rf /root/.cache/uv /root/.cache/pip \
