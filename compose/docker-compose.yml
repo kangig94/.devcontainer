@@ -54,10 +54,6 @@ services:
 
     runtime: nvidia
 
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
     deploy:
       resources:
         reservations:

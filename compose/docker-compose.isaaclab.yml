@@ -14,6 +14,9 @@ services:
         PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
         ISAACLAB_VERSION: ${ISAACLAB_VERSION:-v3.0.0-beta}
     network_mode: host
+    # base attaches `lab` to dev_network (192.168.10/24, NAS-safe);
+    # isaaclab uses host networking, which is mutually exclusive with `networks`.
+    networks: !reset null
 
     environment:
       - VIRTUAL_ENV=/opt/venv

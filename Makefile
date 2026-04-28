@@ -172,26 +172,26 @@ build-multinode:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-multinode:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml up -d
 
 down-multinode:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml down
 
 shell-multinode:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec -u $(USERNAME) lab zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml exec -u $(USERNAME) lab zsh
 
 # Multi-node as root (for SSH-based DeepSpeed launcher)
 build-multinode-root:
 	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
 up-multinode-root:
-	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml up -d
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root RUN_AS_ROOT=true CONTAINER_HOME=/root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml up -d
 
 down-multinode-root:
-	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml down
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml down
 
 shell-multinode-root:
-	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.multinode.yml exec lab zsh
+	$(ML_ENV) BUILD_TARGET=root IMAGE_SUFFIX=-root docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml exec lab zsh
 
 # ============================================
 # Isaac Lab (Isaac Sim + Newton)

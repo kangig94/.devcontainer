@@ -178,6 +178,22 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     # ONNX inference support
     && uv pip install onnxruntime-gpu
 
+# Bake /isaac-sim full read/write/traverse permissions into an image layer.
+#
+# Why a+rwX (not a+rX):
+#   Read-only (a+rX) lets dev user import IsaacSim libs but the runtime needs
+#   to WRITE into /isaac-sim/kit/cache (DerivedDataCache, shadercache) and
+#   /isaac-sim/kit/data (user.config.json). Without write access the omni
+#   datastore retries 256 times to acquire an exclusive lock, fails, and the
+#   first omni.client.stat() call on a USD asset hangs indefinitely while it
+#   waits for the missing datastore.
+#
+# Why bake at build time (not entrypoint):
+#   /isaac-sim is ~28GB; recursive chmod takes 5-15 minutes single-threaded.
+#   Doing it once in an image layer means subsequent containers start instantly.
+#   The .perms-fixed marker tells entrypoint.sh to skip its fallback chmod.
+RUN chmod -R a+rwX /isaac-sim && touch /isaac-sim/.perms-fixed
+
 # Ports: SSH / Jupyter / Viser / Rerun / WebRTC signal / WebRTC stream
 EXPOSE 8888 22 8012 9876 49100 47998
 
