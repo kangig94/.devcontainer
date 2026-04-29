@@ -19,14 +19,17 @@ ENV USERNAME=${USERNAME} \
     VENV_PATH=/opt/venv
 
 # L1: bare minimum to safely switch USER.
-# Disable Ubuntu base's auto-clean so BuildKit apt cache mounts (used in L2)
-# can actually retain downloaded .deb files across rebuilds.
+# - Disable Ubuntu base's apt-clean so BuildKit cache mounts in L2 retain .debs.
+# - Remove the default `ubuntu` user/group at UID/GID 1000 that ubuntu24.04
+#   ships with, otherwise our `groupadd -g 1000 dev` collides.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
     && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
     && apt-get update && apt-get install -y --no-install-recommends \
         sudo gosu zsh ca-certificates curl \
+    && (userdel -r $(getent passwd 1000 | cut -d: -f1) 2>/dev/null || true) \
+    && (groupdel $(getent group 1000 | cut -d: -f1) 2>/dev/null || true) \
     && groupadd -g 1000 ${USERNAME} \
     && useradd -m -u 1000 -g 1000 -s /usr/bin/zsh ${USERNAME} \
     && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
@@ -61,7 +64,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # L3: user-level installers.
 RUN mkdir -p $HOME/.local/bin $HOME/.local/npm/bin $HOME/.local/npm/lib/node_modules \
-    && curl -fsSL "https://gist.githubusercontent.com/kangig94/b418ec255b0c9ad73b986459796801fd/raw/install_zsh_antidote_docker.sh" | bash \
+    && curl -fsSL "https://gist.githubusercontent.com/kangig94/b418ec255b0c9ad73b986459796801fd/raw/install_zsh_antidote_docker.sh?v=2" | bash \
     && curl -kfsSL https://claude.ai/install.sh | bash \
     && npm install -g @openai/codex @google/gemini-cli \
     && curl -LsSf https://astral.sh/uv/install.sh | sh
