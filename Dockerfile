@@ -64,7 +64,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # L3: user-level installers.
 RUN mkdir -p $HOME/.local/bin $HOME/.local/npm/bin $HOME/.local/npm/lib/node_modules \
-    && curl -fsSL "https://gist.githubusercontent.com/kangig94/b418ec255b0c9ad73b986459796801fd/raw/install_zsh_antidote_docker.sh?v=2" | bash \
+    && curl -fsSL "https://gist.githubusercontent.com/kangig94/b418ec255b0c9ad73b986459796801fd/raw/install_zsh_antidote_docker.sh" | bash \
     && curl -kfsSL https://claude.ai/install.sh | bash \
     && npm install -g @openai/codex @google/gemini-cli \
     && curl -LsSf https://astral.sh/uv/install.sh | sh
