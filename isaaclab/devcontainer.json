@@ -28,9 +28,9 @@
 		}
 	},
 
-	"forwardPorts": [8012, 9876, 8888, 49100, 47998],
+	"forwardPorts": [22, 6006, 8080, 8888, 9876, 49100, 47998],
 	"portsAttributes": {
-		"8012": { "label": "Viser", "onAutoForward": "notify" },
+		"8080": { "label": "Viser", "onAutoForward": "notify" },
 		"9876": { "label": "Rerun", "onAutoForward": "notify" },
 		"8888": { "label": "Jupyter Lab", "onAutoForward": "notify" },
 		"49100": { "label": "WebRTC Signal", "onAutoForward": "notify" },

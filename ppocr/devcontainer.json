@@ -28,7 +28,7 @@
 		}
 	},
 
-	"forwardPorts": [8888],
+	"forwardPorts": [22, 6006, 8888],
 	"portsAttributes": {
 		"8888": { "label": "Jupyter Lab", "onAutoForward": "notify" }
 	},

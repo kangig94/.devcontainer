@@ -4,11 +4,11 @@
 services:
   lab:
     build:
-      context: ../..
-      dockerfile: ${DOCKERFILE_PATH:-.devcontainer/Dockerfile}
-      target: ${BUILD_TARGET:-user}
+      context: ..
+      dockerfile: ${DOCKERFILE_PATH:-Dockerfile}
       args:
+        CUDA_BASE: ${CUDA_BASE:-12.9.1-cudnn-devel-ubuntu24.04}
         PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
         TORCH_VERSION: ${TORCH_VERSION:-2.10.0}
         CUDA_TAG: ${CUDA_TAG:-cu128}
-        MAX_JOBS: ${MAX_JOBS:-4}
+        MAX_JOBS: ${MAX_JOBS:-2}

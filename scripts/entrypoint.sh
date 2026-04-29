@@ -1,47 +1,46 @@
 #!/bin/bash
+#
+# Container entrypoint.
+#
+# The image bakes USER root + dev (UID 1000). At every container start we:
+#   1. Detect the host UID/GID (env USER_UID, or stat the workspace mount)
+#   2. Remap dev's UID/GID in /etc/passwd if it differs from the bake-time 1000
+#   3. chown the few directories the dev user needs to own
+#   4. Patch claude-code plugin paths if HOME differs from where they were
+#      first installed, then kick off any unbuilt plugin builds
+#   5. exec the CMD via `gosu dev` so the container runs as the right user
+#
+# Root-as-runtime is not a separate image; use `docker exec -u root <ct>`
+# for one-off privileged commands.
+
 set -e
 
-USERNAME="dev"
-if [ -z "${CONTAINER_HOME:-}" ]; then
-    if [ "${RUN_AS_ROOT:-false}" = "true" ]; then
-        CONTAINER_HOME="/root"
-    else
-        CONTAINER_HOME="/home/dev"
-    fi
-fi
-TARGET_HOME="${CONTAINER_HOME}"
+# USERNAME inherited from image ENV (baked at build time, default "dev").
+USERNAME="${USERNAME:-dev}"
+TARGET_HOME="/home/${USERNAME}"
 
-# Fix Claude Code plugin paths to use current HOME
-# Claude stores absolute paths like /home/user/.claude/... or /root/.claude/... which break when username changes
+# ---- helpers ---------------------------------------------------------------
+
+# Claude stores absolute paths like /home/<original-user>/.claude/... in its
+# plugin metadata. When the container HOME path differs (e.g. UID change
+# moved files to /home/dev), rewrite those references in-place.
 fix_claude_plugin_paths() {
     local claude_dir="$1"
     local target_home="$2"
     local installed_plugins="${claude_dir}/plugins/installed_plugins.json"
     local known_marketplaces="${claude_dir}/plugins/known_marketplaces.json"
 
-    # Find stored home path from either file (supports both /home/user and /root patterns)
     local stored_home=""
     for json_file in "$installed_plugins" "$known_marketplaces"; do
         [ -f "$json_file" ] || continue
-        # Try /home/username pattern first
         local path=$(grep -oP '"/home/[^/]+' "$json_file" 2>/dev/null | head -1 | tr -d '"')
-        if [ -n "$path" ]; then
-            stored_home="$path"
-            break
-        fi
-        # Try /root pattern
-        if grep -q '"/root/' "$json_file" 2>/dev/null; then
-            stored_home="/root"
-            break
-        fi
+        if [ -n "$path" ]; then stored_home="$path"; break; fi
+        if grep -q '"/root/' "$json_file" 2>/dev/null; then stored_home="/root"; break; fi
     done
 
     [ -z "$stored_home" ] && return 0
-
-    # Skip if paths already match
     [ "$stored_home" = "$target_home" ] && return 0
 
-    # Replace old home path with new home path in all plugin-related JSON files
     for json_file in "$installed_plugins" "$known_marketplaces"; do
         [ -f "$json_file" ] || continue
         sed -i "s|${stored_home}|${target_home}|g" "$json_file" 2>/dev/null || true
@@ -49,14 +48,13 @@ fix_claude_plugin_paths() {
     echo "[entrypoint] Fixed Claude plugin paths: ${stored_home} -> ${target_home}"
 }
 
-# Build unbuilt Claude plugins in container environment
+# Build any claude-code plugins that don't have a dist/ yet.
 build_claude_plugins() {
     local cache_dir="$1/plugins/cache"
     [ -d "$cache_dir" ] || return 0
 
     find "$cache_dir" -name "package.json" -maxdepth 4 | while read pkg; do
         local plugin_dir=$(dirname "$pkg")
-        # Skip if already built (dist/ exists) or no build script
         [ -d "${plugin_dir}/dist" ] && continue
         grep -q '"build"' "$pkg" 2>/dev/null || continue
 
@@ -66,85 +64,40 @@ build_claude_plugins() {
     done
 }
 
-# Always build unbuilt plugins on startup.
-# Run in background so container startup and user switch are not blocked.
-maybe_build_claude_plugins() {
+# Run plugin builds in the background as the dev user — startup must not block.
+run_plugin_builds_in_background() {
     local claude_dir="$1"
-    local run_as_user="${2:-}"
     echo "[entrypoint] Building Claude plugins in background"
-    if [ -n "${run_as_user}" ] && [ "$(id -u)" = "0" ] && command -v gosu >/dev/null 2>&1; then
-        (
-            export -f build_claude_plugins
-            gosu "${run_as_user}" bash -lc "build_claude_plugins '${claude_dir}'" \
-                >/tmp/claude-plugin-build.log 2>&1 || true
-        ) &
-    else
-        (build_claude_plugins "$claude_dir" >/tmp/claude-plugin-build.log 2>&1 || true) &
-    fi
+    (
+        export -f build_claude_plugins
+        gosu "${USERNAME}" bash -lc "build_claude_plugins '${claude_dir}'" \
+            >/tmp/claude-plugin-build.log 2>&1 || true
+    ) &
 }
 
-configure_npm_env() {
-    local home_dir="$1"
-    local npm_bin="${home_dir}/.local/npm/bin"
-    export NPM_CONFIG_PREFIX="${home_dir}/.local/npm"
-    export NPM_CONFIG_CACHE="${home_dir}/.npm"
-    case ":${PATH}:" in
-        *":${npm_bin}:"*) ;;
-        *) export PATH="${PATH}:${npm_bin}" ;;
-    esac
-}
+# ---- main flow (always running as root from the image's USER root) --------
 
-# /isaac-sim permissions are baked into the isaaclab image at build time
-# (Dockerfile RUN chmod -R a+rwX /isaac-sim && touch /isaac-sim/.perms-fixed).
-# No runtime fixup needed here.
-
-# Install CA certs if CERT_DIR is set and contains .crt files
-if [ -n "$CERT_DIR" ] && ls "${CERT_DIR}"/*.crt 1>/dev/null 2>&1; then
-    if [ "$(id -u)" = "0" ]; then
-        cp "${CERT_DIR}"/*.crt /usr/local/share/ca-certificates/
-        update-ca-certificates
-    else
-        sudo cp "${CERT_DIR}"/*.crt /usr/local/share/ca-certificates/
-        sudo update-ca-certificates
-    fi
-fi
-
-# Skip user switching for root target or if user doesn't exist
-if [ "${RUN_AS_ROOT}" = "true" ] || ! id "${USERNAME}" &>/dev/null; then
-    mkdir -p "${TARGET_HOME}" 2>/dev/null || true
-    chmod 755 "${TARGET_HOME}" 2>/dev/null || true
-    export HOME="${TARGET_HOME}"
-    configure_npm_env "${HOME}"
-
-    mkdir -p "${HOME}/.local/bin" "${HOME}/.local/npm/bin" "${HOME}/.local/npm/lib/node_modules" "${HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
-    mkdir -p "${HOME}/.npm" 2>/dev/null || true
-    mkdir -p "${HOME}/.cache" 2>/dev/null || true
-    mkdir -p "${HOME}/.config/vllm" 2>/dev/null || true
-
-    # Find .claude directory - check multiple possible locations
-    # Priority: 1) $HOME/.claude (already correct), 2) configured home, 3) /home/${USERNAME}/.claude, 4) /root/.claude
-    CLAUDE_DIR=""
-    for dir in "${HOME}/.claude" "${TARGET_HOME}/.claude" "/home/${USERNAME}/.claude" "/root/.claude"; do
-        if [ -d "$dir" ]; then
-            CLAUDE_DIR="$dir"
-            break
-        fi
-    done
-
-    # Create symlink if .claude found but not at $HOME
-    if [ -n "$CLAUDE_DIR" ] && [ "$CLAUDE_DIR" != "${HOME}/.claude" ] && [ ! -e "${HOME}/.claude" ]; then
-        ln -s "$CLAUDE_DIR" "${HOME}/.claude"
-    fi
-
-    # Fix plugin paths and clear cache for container environment
-    if [ -d "${HOME}/.claude" ]; then
-        fix_claude_plugin_paths "${HOME}/.claude" "${HOME}"
-        maybe_build_claude_plugins "${HOME}/.claude"
-    fi
+if [ "$(id -u)" != "0" ]; then
+    echo "[entrypoint] expected to run as root; got uid $(id -u). exec'ing CMD as-is." >&2
     exec "$@"
 fi
 
-# Auto-detect UID/GID from WORKSPACE_DIR (skip if root)
+# Optional: pick up host CA certs dropped into the workspace .devcontainer dir.
+if [ -n "$CERT_DIR" ] && ls "${CERT_DIR}"/*.crt 1>/dev/null 2>&1; then
+    cp "${CERT_DIR}"/*.crt /usr/local/share/ca-certificates/
+    update-ca-certificates
+fi
+
+# Generate sshd host keys if missing. Done here (not at image build) so
+# each container instance gets its own identity and image rebuilds don't
+# break clients' known_hosts. ssh-keygen -A is idempotent: existing keys
+# are left alone.
+if [ -d /etc/ssh ]; then
+    ssh-keygen -A 2>/dev/null || true
+fi
+
+# UID/GID detection. Prefer explicit USER_UID, fall back to stat'ing the
+# mounted workspace so the container always matches the host's file owner.
 if [ -z "$USER_UID" ] || [ "$USER_UID" = "1000" ]; then
     if [ -n "$WORKSPACE_DIR" ] && [ -d "$WORKSPACE_DIR" ]; then
         DETECTED_UID=$(stat -c '%u' "$WORKSPACE_DIR")
@@ -158,76 +111,53 @@ fi
 USER_UID=${USER_UID:-1000}
 USER_GID=${USER_GID:-1000}
 
-if [ "$(id -u)" = "0" ]; then
-    CURRENT_UID=$(id -u ${USERNAME})
-    CURRENT_GID=$(id -g ${USERNAME})
+CURRENT_UID=$(id -u "${USERNAME}")
+CURRENT_GID=$(id -g "${USERNAME}")
 
-    # Always create required directories for jupyter and vllm
-    mkdir -p "${TARGET_HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
-    mkdir -p "${TARGET_HOME}/.cache" 2>/dev/null || true
-    mkdir -p "${TARGET_HOME}/.config/vllm" 2>/dev/null || true
+# Always create runtime dirs that some apps (jupyter, vllm, npm) expect.
+mkdir -p \
+    "${TARGET_HOME}/.local/bin" \
+    "${TARGET_HOME}/.local/npm/bin" \
+    "${TARGET_HOME}/.local/npm/lib/node_modules" \
+    "${TARGET_HOME}/.local/share/jupyter/runtime" \
+    "${TARGET_HOME}/.local/state" \
+    "${TARGET_HOME}/.npm" \
+    "${TARGET_HOME}/.cache" \
+    "${TARGET_HOME}/.config/vllm" \
+    2>/dev/null || true
 
-    if [ "${CURRENT_UID}" != "${USER_UID}" ] || [ "${CURRENT_GID}" != "${USER_GID}" ]; then
-        sed -i "s/^${USERNAME}:x:${CURRENT_UID}:${CURRENT_GID}:/${USERNAME}:x:${USER_UID}:${USER_GID}:/" /etc/passwd
-        sed -i "s/^${USERNAME}:x:${CURRENT_GID}:/${USERNAME}:x:${USER_GID}:/" /etc/group
-    fi
-
-    # Keep startup fast: avoid recursive chown on mounted or large dirs.
-    for dir in \
-        "${TARGET_HOME}/.ssh" \
-        "${TARGET_HOME}/.local" \
-        "${TARGET_HOME}/.npm" \
-        "${TARGET_HOME}/.cache" \
-        "${TARGET_HOME}/.config" \
-        "${TARGET_HOME}/.claude"; do
-        [ -e "$dir" ] && chown ${USER_UID}:${USER_GID} "$dir" 2>/dev/null || true
-    done
-    mkdir -p "${TARGET_HOME}/.local/bin" "${TARGET_HOME}/.local/npm/bin" "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
-    mkdir -p "${TARGET_HOME}/.local/share" "${TARGET_HOME}/.local/state" "${TARGET_HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/bin" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/bin" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/npm/bin" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/npm/bin" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/npm/lib/node_modules" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/share" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/share" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/state" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.local/state" 2>/dev/null || true
-    # npm cache can contain stale root-owned files from previous runs.
-    [ -d "${TARGET_HOME}/.npm" ] && chown -R ${USER_UID}:${USER_GID} "${TARGET_HOME}/.npm" 2>/dev/null || true
-    chown ${USER_UID}:${USER_GID} "${TARGET_HOME}" 2>/dev/null || true
-    chmod 755 "${TARGET_HOME}" 2>/dev/null || true
-
-    export HOME="${TARGET_HOME}"
-    configure_npm_env "${HOME}"
-    fix_claude_plugin_paths "${HOME}/.claude" "${HOME}"
-    maybe_build_claude_plugins "${HOME}/.claude" "${USERNAME}"
-    exec gosu ${USERNAME} "$@"
-else
-    # Running as non-root: create and fix directories
-    CURRENT_UID=$(id -u)
-    CURRENT_GID=$(id -g)
-    sudo mkdir -p "${TARGET_HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
-    sudo mkdir -p "${TARGET_HOME}/.cache" 2>/dev/null || true
-    sudo mkdir -p "${TARGET_HOME}/.config/vllm" 2>/dev/null || true
-    sudo chown ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}" 2>/dev/null || true
-    sudo chmod 755 "${TARGET_HOME}" 2>/dev/null || true
-    for dir in \
-        "${TARGET_HOME}/.ssh" \
-        "${TARGET_HOME}/.local" \
-        "${TARGET_HOME}/.npm" \
-        "${TARGET_HOME}/.cache" \
-        "${TARGET_HOME}/.config" \
-        "${TARGET_HOME}/.claude"; do
-        [ -e "$dir" ] && sudo chown ${CURRENT_UID}:${CURRENT_GID} "$dir" 2>/dev/null || true
-    done
-    sudo mkdir -p "${TARGET_HOME}/.local/bin" "${TARGET_HOME}/.local/npm/bin" "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
-    sudo mkdir -p "${TARGET_HOME}/.local/share" "${TARGET_HOME}/.local/state" "${TARGET_HOME}/.local/share/jupyter/runtime" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/bin" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/bin" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/npm/bin" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/npm/bin" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/npm/lib/node_modules" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/npm/lib/node_modules" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/share" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/share" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.local/state" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.local/state" 2>/dev/null || true
-    [ -d "${TARGET_HOME}/.npm" ] && sudo chown -R ${CURRENT_UID}:${CURRENT_GID} "${TARGET_HOME}/.npm" 2>/dev/null || true
-    export HOME="${TARGET_HOME}"
-    configure_npm_env "${HOME}"
-    fix_claude_plugin_paths "${HOME}/.claude" "${HOME}"
-    maybe_build_claude_plugins "${HOME}/.claude"
+# Remap dev's UID/GID if the host differs.
+if [ "${CURRENT_UID}" != "${USER_UID}" ] || [ "${CURRENT_GID}" != "${USER_GID}" ]; then
+    sed -i "s/^${USERNAME}:x:${CURRENT_UID}:${CURRENT_GID}:/${USERNAME}:x:${USER_UID}:${USER_GID}:/" /etc/passwd
+    sed -i "s/^${USERNAME}:x:${CURRENT_GID}:/${USERNAME}:x:${USER_GID}:/" /etc/group
 fi
-exec "$@"
+
+# chown only the dirs the dev user needs to write to. Avoid recursing into
+# the workspace mount (NAS-backed, slow) or /opt/venv (already chown'd at
+# build time and full of small files).
+for dir in \
+    "${TARGET_HOME}/.ssh" \
+    "${TARGET_HOME}/.local" \
+    "${TARGET_HOME}/.npm" \
+    "${TARGET_HOME}/.cache" \
+    "${TARGET_HOME}/.config" \
+    "${TARGET_HOME}/.claude"; do
+    [ -e "$dir" ] && chown ${USER_UID}:${USER_GID} "$dir" 2>/dev/null || true
+done
+for dir in \
+    "${TARGET_HOME}/.local/bin" \
+    "${TARGET_HOME}/.local/npm/bin" \
+    "${TARGET_HOME}/.local/npm/lib/node_modules" \
+    "${TARGET_HOME}/.local/share" \
+    "${TARGET_HOME}/.local/state" \
+    "${TARGET_HOME}/.npm"; do
+    [ -d "$dir" ] && chown -R ${USER_UID}:${USER_GID} "$dir" 2>/dev/null || true
+done
+chown ${USER_UID}:${USER_GID} "${TARGET_HOME}" 2>/dev/null || true
+chmod 755 "${TARGET_HOME}" 2>/dev/null || true
+
+# claude plugin paths and build
+fix_claude_plugin_paths "${TARGET_HOME}/.claude" "${TARGET_HOME}"
+[ -d "${TARGET_HOME}/.claude" ] && run_plugin_builds_in_background "${TARGET_HOME}/.claude"
+
+exec gosu ${USERNAME} "$@"

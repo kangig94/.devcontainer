@@ -1,13 +1,15 @@
 # PaddleOCR overlay — use with: -f docker-compose.yml -f docker-compose.ppocr.yml
+# Paddle's latest supported CUDA is 12.6 — this overlay assumes the base
+# image was built with CUDA_TAG=cu126 (handled by `make build-ppocr`).
 name: ppocr
 
 services:
   lab:
-    image: ${DOCKER_REGISTRY:-your-registry}/ppocr:${PY_TAG:-py312}-cu126${IMAGE_SUFFIX:--dev}
+    image: ${DOCKER_REGISTRY:-your-registry}/ppocr:${PY_TAG:-py312}-${CUDA_TAG:-cu126}-dev
     build:
-      context: ../..
-      dockerfile: .devcontainer/ppocr/Dockerfile
-      target: ${BUILD_TARGET:-user}
+      context: ..
+      dockerfile: ppocr/Dockerfile
       args:
-        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
-        CUDA_TAG: cu126
+        # BASE_IMAGE must point at the cu126-flavored base built earlier.
+        BASE_IMAGE: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu126}-dev
+        PADDLE_CUDA_TAG: ${PADDLE_CUDA_TAG:-cu126}

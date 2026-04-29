@@ -1,183 +1,98 @@
 # syntax=docker/dockerfile:1.6
-FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04 AS base
+#
+# Layers ordered by cache stability (top = most stable):
+#   L1 (root): sudo + dev user                — never
+#   L2 (dev):  apt packages + node            — rare
+#   L3 (dev):  zsh dotfiles + claude/uv       — moderate
+#   L4 (dev):  torch / deepspeed / flash-attn — frequent
+# Final USER root is for entrypoint UID/GID remap before `gosu dev`.
+
+ARG CUDA_BASE=12.9.1-cudnn-devel-ubuntu24.04
+FROM nvidia/cuda:${CUDA_BASE} AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG USERNAME=dev
 
-# ------------------------------------------------------------
-# Layer 1: Base system + SSH setup
-# ------------------------------------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-venv python3-dev python3-setuptools \
-    nano tree ca-certificates curl wget git pkg-config tmux unzip net-tools \
-    build-essential g++ libstdc++6 libgcc-s1 ninja-build cmake make \
-    libjpeg-dev libpng-dev libtiff-dev ffmpeg \
-    openssh-server openssh-client pdsh \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/run/sshd /root/.ssh \
-    && chmod 700 /root/.ssh \
-    && ssh-keygen -A \
-    && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config \
-    && echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config \
-    && echo "PasswordAuthentication no" >> /etc/ssh/sshd_config \
-    && echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config \
-    && echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
+# Persist USERNAME as ENV so child images (isaaclab/...) inherit it without
+# re-declaring the ARG. Same for VENV_PATH used by LD_LIBRARY_PATH.
+ENV USERNAME=${USERNAME} \
+    VENV_PATH=/opt/venv
 
-# ------------------------------------------------------------
-# Layer 2: zsh + antidote
-# ------------------------------------------------------------
-RUN curl -fsSL \
-    "https://gist.githubusercontent.com/kangig94/b418ec255b0c9ad73b986459796801fd/raw/install_zsh_antidote_docker.sh" \
-    | bash
+# L1: bare minimum to safely switch USER.
+# Disable Ubuntu base's auto-clean so BuildKit apt cache mounts (used in L2)
+# can actually retain downloaded .deb files across rebuilds.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        sudo gosu zsh ca-certificates curl \
+    && groupadd -g 1000 ${USERNAME} \
+    && useradd -m -u 1000 -g 1000 -s /usr/bin/zsh ${USERNAME} \
+    && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME} \
+    && install -d -o ${USERNAME} -g ${USERNAME} ${VENV_PATH}
 
-# ------------------------------------------------------------
-# Layer 3: Node.js + Claude Code + Codex + Gemini
-# ------------------------------------------------------------
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/* \
+COPY files/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
+COPY files/shell-aliases.sh /etc/profile.d/shell-aliases.sh
+RUN echo 'for f in /etc/profile.d/*.sh; do [ -r "$f" ] && . "$f"; done' \
+        >> /etc/zsh/zshrc
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+ENV HOME=/home/${USERNAME}
+ENV NPM_CONFIG_PREFIX=$HOME/.local/npm \
+    NPM_CONFIG_CACHE=$HOME/.npm
+ENV PATH="$HOME/.local/bin:$HOME/.local/npm/bin:${VENV_PATH}/bin:/usr/local/cuda/bin:${PATH}"
+
+# L2: apt packages + node. sshd host keys are generated per-container in entrypoint.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        python3 python3-venv python3-dev python3-setuptools \
+        nano tree wget git pkg-config tmux unzip net-tools ncurses-term \
+        build-essential g++ libstdc++6 libgcc-s1 ninja-build cmake make \
+        libjpeg-dev libpng-dev libtiff-dev ffmpeg \
+        openssh-server openssh-client pdsh \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - \
+    && sudo apt-get install -y nodejs \
+    && sudo mkdir -p /var/run/sshd
+
+# L3: user-level installers.
+RUN mkdir -p $HOME/.local/bin $HOME/.local/npm/bin $HOME/.local/npm/lib/node_modules \
+    && curl -fsSL "https://gist.githubusercontent.com/kangig94/b418ec255b0c9ad73b986459796801fd/raw/install_zsh_antidote_docker.sh" | bash \
     && curl -kfsSL https://claude.ai/install.sh | bash \
-    && CLAUDE_VER=$(ls /root/.local/share/claude/versions/) \
-    && mkdir -p /opt/claude \
-    && mv /root/.local/share/claude/versions/${CLAUDE_VER} /opt/claude/ \
-    && chmod -R 755 /opt/claude \
-    && rm -rf /root/.local/share/claude /root/.local/bin/claude /root/.local/bin/env /root/.local/bin/env.fish \
-    && ln -s /opt/claude/${CLAUDE_VER} /usr/local/bin/claude \
-    && sed -i 's/^\. "\$HOME\/\.local\/bin\/env"$/[ -f "\$HOME\/.local\/bin\/env" ] \&\& . "\$HOME\/.local\/bin\/env"/' /root/.bashrc /root/.profile 2>/dev/null || true \
-    && npm install -g @openai/codex \
-    && npm install -g @google/gemini-cli
+    && npm install -g @openai/codex @google/gemini-cli \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV PATH="/root/.local/bin:/root/.local/npm/bin:${PATH}"
-
-# ------------------------------------------------------------
-# Layer 4: uv + Python venv + Shell aliases
-# ------------------------------------------------------------
+# L4: heavy python deps. ARG/ENV declared here so version bumps only invalidate L4.
 ARG PYTHON_VERSION="3.12"
-ENV VENV_PATH=/opt/venv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && uv venv ${VENV_PATH} --python ${PYTHON_VERSION} \
-    && echo 'for f in /etc/profile.d/*.sh; do [ -r "$f" ] && . "$f"; done' >> /etc/zsh/zshrc \
-    && cat > /etc/profile.d/shell-aliases.sh <<'ALIASES'
-# uv wrapper: `uv a` or `uv activate` to source .venv/bin/activate
-uv() {
-    if [ "$1" = "a" ] || [ "$1" = "activate" ]; then
-        if [ -f ".venv/bin/activate" ]; then
-            source .venv/bin/activate
-        else
-            echo "No .venv/bin/activate in $(pwd)"
-            return 1
-        fi
-    else
-        command uv "$@"
-    fi
-}
-# Claude Code worktree launcher
-clx() {
-    local branch_name
-    if [ -z "$1" ]; then
-        branch_name="worktree-$(date +%Y%m%d-%H%M%S)"
-    else
-        branch_name="$1"
-    fi
-    git worktree add "../$branch_name" -b "$branch_name" && \
-    cd "../$branch_name" || return 1
-    claude --model opusplan --permission-mode plan
-}
-# Explicit wrapper for bypassing approval prompts
-alias clb='claude --dangerously-skip-permissions'
-ALIASES
+ARG TORCH_VERSION="2.10.0"
+ARG CUDA_TAG="cu128"
+ARG MAX_JOBS=2
 
-ENV PATH="${VENV_PATH}/bin:${PATH}"
+ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0;10.0;10.3;12.0"
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# nvidia/cuda base sets LD_LIBRARY_PATH=/usr/local/cuda/lib64 which contains
-# libcublas.so.12.9.x. The torch cu128 wheel installs its own 12.8.x cuBLAS
-# under .../site-packages/nvidia/cublas/lib/. Despite NVIDIA's same-major
-# forward-compat policy, the 12.8/12.9 skew breaks cublasSgemmStridedBatched
-# in torch >=2.10 (CUBLAS_STATUS_INVALID_VALUE on every torch.bmm). Prepend
-# the wheel's cuBLAS so torch loads the matched lib first, while keeping
-# /usr/local/cuda/lib64 in the path so user-built custom CUDA C++ extensions
-# linked against the system CUDA toolkit still resolve at runtime.
-ENV LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH}
+# Prepend torch wheel cuBLAS so it wins over base image's system libcublas
+# (12.8 wheel vs 12.9 system, ABI-incompatible in cublasSgemmStridedBatched
+# on torch >=2.10). System path preserved for user-built CUDA C++ extensions.
+ENV LD_LIBRARY_PATH=${VENV_PATH}/lib/python${PYTHON_VERSION}/site-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH}
 
-WORKDIR /root
-
-# ------------------------------------------------------------
-# Layer 5: Python deps + Jupyter config
-# ------------------------------------------------------------
-# Multi-GPU architecture support: A100(8.0), RTX30(8.6), RTX40(8.9), H100(9.0), B100(10.0), RTX50(12.0)
-ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0;10.0;10.3;12.0"
-
-ARG TORCH_VERSION="2.10.0"
-ARG CUDA_TAG="cu128"
-ARG MAX_JOBS=4
-
-RUN uv pip install --upgrade pip setuptools wheel \
-    && uv pip install --no-build-isolation --index-url https://download.pytorch.org/whl/${CUDA_TAG} torch==${TORCH_VERSION} torchvision torchaudio \
+RUN --mount=type=cache,target=/home/${USERNAME}/.cache/uv,uid=1000,gid=1000 \
+    uv venv ${VENV_PATH} --python ${PYTHON_VERSION} \
+    && uv pip install --upgrade pip setuptools wheel \
+    && uv pip install --no-build-isolation --index-url https://download.pytorch.org/whl/${CUDA_TAG} \
+        torch==${TORCH_VERSION} torchvision torchaudio \
     && uv pip install psutil ninja packaging \
     && MAX_JOBS=${MAX_JOBS} uv pip install --no-build-isolation deepspeed accelerate \
     && MAX_JOBS=${MAX_JOBS} uv pip install --no-build-isolation --prerelease=allow flash-attn-4 \
-    && uv pip install diffusers transformers peft datasets sentencepiece einops \
-    && uv pip install jupyterlab \
-    && rm -rf /root/.cache/uv /root/.cache/pip \
-    && mkdir -p /etc/jupyter && cat > /etc/jupyter/jupyter_server_config.py <<'EOF'
-import os
-c = get_config()
-c.ServerApp.ip = "0.0.0.0"
-c.ServerApp.port = 8888
-c.ServerApp.open_browser = False
-c.ServerApp.allow_remote_access = True
-c.ServerApp.token = ""
-c.ServerApp.password = ""
-c.ServerApp.disable_check_xsrf = True
-c.ServerApp.root_dir = os.environ.get("HOME", "/root")
-c.ServerApp.allow_root = os.getuid() == 0
-EOF
+    && uv pip install diffusers transformers peft datasets sentencepiece einops jupyterlab
 
-EXPOSE 8888 22
-
-# ============================================================
-# Target: root (run as root user)
-# ============================================================
-FROM base AS root
-
-ENV HOME=/root
-ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.local/npm/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-SHELL ["/usr/bin/zsh", "-lc"]
-CMD ["zsh", "-l"]
-
-# ============================================================
-# Target: user (run as non-root user) - DEFAULT
-# ============================================================
-FROM base AS user
-
-ARG USER_UID=1000
-ARG USER_GID=1000
-
-RUN apt-get update && apt-get install -y --no-install-recommends sudo gosu \
-    && rm -rf /var/lib/apt/lists/* \
-    && (userdel -r $(getent passwd ${USER_UID} | cut -d: -f1) 2>/dev/null || true) \
-    && (groupdel $(getent group ${USER_GID} | cut -d: -f1) 2>/dev/null || true) \
-    && groupadd -g ${USER_GID} dev \
-    && useradd -m -u ${USER_UID} -g ${USER_GID} -s /usr/bin/zsh dev \
-    && echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/dev \
-    && chmod 0440 /etc/sudoers.d/dev \
-    && find /root -maxdepth 1 -name '.*' ! -name '.' ! -name '..' -exec mv {} /home/dev/ \; \
-    && mkdir -p /home/dev/.ssh /home/dev/.cache /home/dev/.npm /home/dev/.local/bin /home/dev/.local/npm/bin /home/dev/.local/npm/lib/node_modules \
-    && chown -R ${USER_UID}:${USER_GID} /home/dev/.ssh /home/dev/.zshrc /home/dev/.zsh* /home/dev/.antidote* /home/dev/.local /home/dev/.npm 2>/dev/null || true \
-    && chmod 700 /home/dev/.ssh \
-    && chmod 777 /home/dev/.cache \
-    && chmod -R 777 /opt/venv \
-    && sed -i 's/compinit/compinit -u/' /home/dev/.zshrc 2>/dev/null || true
-
-WORKDIR /home/dev
-
-ENV HOME=/home/dev
-ENV PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.local/npm/bin:$HOME/.opencode/bin:${VENV_PATH}/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ENV NPM_CONFIG_PREFIX=/home/dev/.local/npm \
-    NPM_CONFIG_CACHE=/home/dev/.npm
-
+USER root
+EXPOSE 8888 22 6006
 CMD ["zsh", "-l"]

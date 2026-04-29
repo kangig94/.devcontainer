@@ -1,0 +1,8 @@
+# Build context = .devcontainer/ (set in compose). Drop things that don't
+# belong in the image but are present in this dir.
+.git
+compose/.env
+scripts/ssh_keys
+hostfile
+**/*.crt
+**/*.pub

@@ -26,8 +26,9 @@ See `compose/.env.sample` for all available options.
 
 Notes:
 - `USERNAME` is fixed to `dev` (image/entrypoint policy)
-- Default home path is `CONTAINER_HOME=/home/dev`
-- Root mode (`make up-root`) uses `CONTAINER_HOME=/root`
+- Container home is always `/home/dev`
+- For one-off privileged commands, use `docker exec -u root <container>` —
+  there is no separate "root image"
 
 ### 2. Build & Start
 
@@ -66,8 +67,10 @@ Since NAS workspace is used, local and server environments share the same files:
 
 ### Commands by Environment
 
-- **Local**: `make build`, `make up`, `make shell`
-- **Server**: `make build-server`, `make up-server`, `make shell-server`
+- **Local**: `make build`, `make up`, `make shell` (or `up-local`/`shell-local` explicitly)
+- **Server**: `make build`, `make up-server`, `make shell-server`
+
+`make build` is identical for both — the local/server distinction only affects which mounts are added at `up` time.
 
 ## Usage
 
@@ -75,8 +78,7 @@ Since NAS workspace is used, local and server environments share the same files:
 
 ```bash
 cd .devcontainer
-make build          # Local (auto-detect UID/GID)
-make build-server   # Server
+make build          # Auto-detects UID/GID from host
 ```
 
 UID/GID is reconciled at container startup by `entrypoint.sh` (runtime), based on mounted workspace ownership.
@@ -95,9 +97,9 @@ UID/GID is reconciled at container startup by `entrypoint.sh` (runtime), based o
 cd /path/to/your/workspace/.devcontainer
 
 # Build image (first time only)
-make build-server
+make build
 
-# Start container
+# Start container without local-only mounts
 make up-server
 
 # Access shell
@@ -132,11 +134,11 @@ python train.py ...
 ## Mounted Volumes
 
 ### Base (All Environments)
-- NAS workspace: `${NAS_HOME}/workspace` → `${CONTAINER_HOME}/workspace`
-- NAS cache: `${NAS_HOME}/.cache` → `${CONTAINER_HOME}/.cache`
-- NAS datasets: `${NAS_HOME}/datasets` → `${CONTAINER_HOME}/datasets`
-- Claude session: `${NAS_HOME}/.claude-dev` → `${CONTAINER_HOME}/.claude`
-- Tmux config: `${NAS_HOME}/.tmux.conf` → `${CONTAINER_HOME}/.tmux.conf`
+- NAS workspace: `${NAS_HOME}/workspace` → `/home/dev/workspace`
+- NAS cache: `${NAS_HOME}/.cache` → `/home/dev/.cache`
+- NAS datasets: `${NAS_HOME}/datasets` → `/home/dev/datasets`
+- Claude session: `${NAS_HOME}/.claude-dev` → `/home/dev/.claude`
+- Tmux config: `${NAS_HOME}/.tmux.conf` → `/home/dev/.tmux.conf`
 
 ### Local Only (docker-compose.local.yml)
 - This file is intentionally minimal by default.
@@ -144,12 +146,12 @@ python train.py ...
 
 ## Installed Tools
 
-- Python 3.12 + uv
-- PyTorch (CUDA 12.8)
-- flash-attn, deepspeed, accelerate
-- diffusers, transformers, peft
+- Python 3.12 + uv (system CUDA 12.9.1, torch wheel cu128)
+- PyTorch 2.10.0, torchvision, torchaudio
+- flash-attn-4, deepspeed, accelerate
+- diffusers, transformers, peft, datasets
 - Jupyter Lab
-- OpenCode + oh-my-opencode
+- Claude Code + Codex + Gemini CLI
 - Zsh + antidote
 - SSH server/client (for multi-node training)
 
@@ -158,30 +160,32 @@ python train.py ...
 ```bash
 make              # Show help
 
-# Local development (includes Git credentials, OpenCode, etc.)
+# Base image (single command for all envs)
 make build        # Build (auto-detect UID/GID)
-make up           # Start container
-make down         # Stop container
-make shell        # Access shell
 make run          # build + up + shell
 
-# Server training (base NAS mounts only)
-make build-server
+# Local development (includes Git credentials, etc.)
+make up           # Start container with local mounts
+make down         # Stop container
+make shell        # Access shell
+
+# Server training (NAS mounts only, no local settings)
 make up-server
 make down-server
 make shell-server
 
-# Root environment (for testing)
-make build-root   # Build with root target
-make up-root      # Start root container
-make down-root    # Stop root container
-make shell-root   # Access root container shell
-# (root mode automatically sets CONTAINER_HOME=/root)
+# One-off root command (no separate image required)
+docker exec -u root <container> <cmd>
 
 # Multi-Node Training (DeepSpeed distributed)
+make build-multinode # Build multinode overlay (depends on base)
 make up-multinode    # Start multinode container
 make down-multinode  # Stop multinode container
 make shell-multinode # Access multinode container shell
+
+# PaddleOCR (auto-builds cu126 base + paddle overlay)
+make build-ppocr     # Build cu126 base + ppocr overlay
+make up-ppocr / down-ppocr / shell-ppocr
 ```
 
 ## Multi-Node Training (DeepSpeed)
@@ -292,7 +296,7 @@ Isaac Lab `v3.0.0-beta` (git, editable)
 ```bash
 cd .devcontainer
 
-# `make build-isaaclab` chains: build-local (base) → build-isaaclab (overlay).
+# `make build-isaaclab` chains: build (base) → build-isaaclab (overlay).
 # IsaacLab is already installed inside the image; no in-container install needed.
 make build-isaaclab
 make up-isaaclab
@@ -348,6 +352,30 @@ Local Workstation                 GPU Cluster (headless)
 └── Same Docker image             └── Same Docker image
 ```
 
+## PaddleOCR
+
+PaddleOCR overlay on top of a cu126-flavored base. Paddle's latest supported
+CUDA is 12.6, so this variant builds a separate base image with `CUDA_TAG=cu126`
+(system libs stay at 12.9.x — paddle wheels bundle their own CUDA libs).
+
+**Layers**: `nvidia/cuda:12.9.1` → uv-torch base (cu126 wheel) → paddlepaddle-gpu + paddleocr
+
+### Quick Start
+
+```bash
+cd .devcontainer
+
+# Builds cu126 base + ppocr overlay in one command.
+make build-ppocr
+make up-ppocr
+make shell-ppocr
+```
+
+### Notes
+
+- The cu126 base image is tagged `<registry>/uv-torch:py312-2.10.0-cu126-dev` and coexists with the default cu128 base.
+- ppocr image is tagged `<registry>/ppocr:py312-cu126-dev`.
+
 ## Troubleshooting
 
 ### Rebuild Container
@@ -376,7 +404,7 @@ make up
 
 ### docker-compose.local.yml Not Found Error
 
-If local-only file doesn't exist, use server commands:
+If local-only file was deleted, restore from git or use the server variant:
 ```bash
 make up-server
 make shell-server
