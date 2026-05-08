@@ -2,83 +2,36 @@
 #
 # Container entrypoint.
 #
-# The image bakes USER root + dev (UID 1000). At every container start we:
+# At every container start:
 #   1. Detect the host UID/GID (env USER_UID, or stat the workspace mount)
-#   2. Remap dev's UID/GID in /etc/passwd if it differs from the bake-time 1000
+#   2. Remap dev's UID/GID in /etc/passwd if it differs from bake-time 1000
 #   3. chown the few directories the dev user needs to own
-#   4. Patch claude-code plugin paths if HOME differs from where they were
-#      first installed, then kick off any unbuilt plugin builds
-#   5. exec the CMD via `gosu dev` so the container runs as the right user
+#   4. ssh-keygen / optional ca-certs from $CERT_DIR
+#   5. exec the CMD via `gosu dev`
+#
+# AI CLIs are installed on demand via /usr/local/bin/setup-ai inside the
+# container, not at boot.
 #
 # Root-as-runtime is not a separate image; use `docker exec -u root <ct>`
 # for one-off privileged commands.
 
 set -e
 
-# USERNAME inherited from image ENV (baked at build time, default "dev").
-USERNAME="${USERNAME:-dev}"
-TARGET_HOME="/home/${USERNAME}"
+# Image always uses dev. UID/GID are reconciled below.
+USERNAME="dev"
+TARGET_HOME="/home/dev"
 
-# ---- helpers ---------------------------------------------------------------
-
-# Claude stores absolute paths like /home/<original-user>/.claude/... in its
-# plugin metadata. When the container HOME path differs (e.g. UID change
-# moved files to /home/dev), rewrite those references in-place.
-fix_claude_plugin_paths() {
-    local claude_dir="$1"
-    local target_home="$2"
-    local installed_plugins="${claude_dir}/plugins/installed_plugins.json"
-    local known_marketplaces="${claude_dir}/plugins/known_marketplaces.json"
-
-    local stored_home=""
-    for json_file in "$installed_plugins" "$known_marketplaces"; do
-        [ -f "$json_file" ] || continue
-        local path=$(grep -oP '"/home/[^/]+' "$json_file" 2>/dev/null | head -1 | tr -d '"')
-        if [ -n "$path" ]; then stored_home="$path"; break; fi
-        if grep -q '"/root/' "$json_file" 2>/dev/null; then stored_home="/root"; break; fi
-    done
-
-    [ -z "$stored_home" ] && return 0
-    [ "$stored_home" = "$target_home" ] && return 0
-
-    for json_file in "$installed_plugins" "$known_marketplaces"; do
-        [ -f "$json_file" ] || continue
-        sed -i "s|${stored_home}|${target_home}|g" "$json_file" 2>/dev/null || true
-    done
-    echo "[entrypoint] Fixed Claude plugin paths: ${stored_home} -> ${target_home}"
-}
-
-# Build any claude-code plugins that don't have a dist/ yet.
-build_claude_plugins() {
-    local cache_dir="$1/plugins/cache"
-    [ -d "$cache_dir" ] || return 0
-
-    find "$cache_dir" -name "package.json" -maxdepth 4 | while read pkg; do
-        local plugin_dir=$(dirname "$pkg")
-        [ -d "${plugin_dir}/dist" ] && continue
-        grep -q '"build"' "$pkg" 2>/dev/null || continue
-
-        echo "[entrypoint] Building plugin: ${plugin_dir}"
-        (cd "$plugin_dir" && npm install --ignore-scripts 2>/dev/null && npm run build 2>/dev/null) || \
-            echo "[entrypoint] Warning: plugin build failed: ${plugin_dir}"
-    done
-}
-
-# Run plugin builds in the background as the dev user — startup must not block.
-run_plugin_builds_in_background() {
-    local claude_dir="$1"
-    echo "[entrypoint] Building Claude plugins in background"
-    (
-        export -f build_claude_plugins
-        gosu "${USERNAME}" bash -lc "build_claude_plugins '${claude_dir}'" \
-            >/tmp/claude-plugin-build.log 2>&1 || true
-    ) &
-}
-
-# ---- main flow (always running as root from the image's USER root) --------
+# ---- main flow ------------------------------------------------------------
+# Image USER is `dev` so that `docker exec` (Attach, manual exec, etc.) lands
+# as dev by default. PID 1 still needs root for UID remap, ssh-keygen, and
+# ca-certificates, so we self-elevate via dev's NOPASSWD sudo. The env_keep
+# rule baked into /etc/sudoers.d/entrypoint-env preserves USER_UID etc.
 
 if [ "$(id -u)" != "0" ]; then
-    echo "[entrypoint] expected to run as root; got uid $(id -u). exec'ing CMD as-is." >&2
+    if command -v sudo >/dev/null 2>&1; then
+        exec sudo -E "$0" "$@"
+    fi
+    echo "[entrypoint] not root and sudo unavailable; exec'ing CMD as-is." >&2
     exec "$@"
 fi
 
@@ -140,8 +93,7 @@ for dir in \
     "${TARGET_HOME}/.local" \
     "${TARGET_HOME}/.npm" \
     "${TARGET_HOME}/.cache" \
-    "${TARGET_HOME}/.config" \
-    "${TARGET_HOME}/.claude"; do
+    "${TARGET_HOME}/.config"; do
     [ -e "$dir" ] && chown ${USER_UID}:${USER_GID} "$dir" 2>/dev/null || true
 done
 for dir in \
@@ -155,9 +107,5 @@ for dir in \
 done
 chown ${USER_UID}:${USER_GID} "${TARGET_HOME}" 2>/dev/null || true
 chmod 755 "${TARGET_HOME}" 2>/dev/null || true
-
-# claude plugin paths and build
-fix_claude_plugin_paths "${TARGET_HOME}/.claude" "${TARGET_HOME}"
-[ -d "${TARGET_HOME}/.claude" ] && run_plugin_builds_in_background "${TARGET_HOME}/.claude"
 
 exec gosu ${USERNAME} "$@"

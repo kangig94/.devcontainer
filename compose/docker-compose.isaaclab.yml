@@ -11,7 +11,7 @@ services:
       args:
         # Mirror base service's image expression so this overlay layers on
         # the actual base image we just built.
-        BASE_IMAGE: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu128}-dev
+        BASE_IMAGE: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu128}
         ISAACSIM_VERSION: ${ISAACSIM_VERSION:-6.0.0}
         ISAACLAB_VERSION: ${ISAACLAB_VERSION:-v3.0.0-beta}
     network_mode: host

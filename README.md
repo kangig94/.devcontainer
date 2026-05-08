@@ -25,10 +25,10 @@ NAS_HOME=/path/to/your/nas/home           # Required (or set HOST_* paths direct
 See `compose/.env.sample` for all available options.
 
 Notes:
-- `USERNAME` is fixed to `dev` (image/entrypoint policy)
-- Container home is always `/home/dev`
+- Container user is always `dev`. UID/GID are reconciled to the host at startup.
+- Container home is always `/home/dev`.
 - For one-off privileged commands, use `docker exec -u root <container>` —
-  there is no separate "root image"
+  there is no separate "root image".
 
 ### 2. Build & Start
 
@@ -47,7 +47,18 @@ See `make help` for all available commands.
 2. `Ctrl+Shift+P` → "Dev Containers: Attach to Running Container"
 3. Select `devcontainer-lab-1`
 
-### 4. Jupyter Lab Access
+### 4. Install AI CLIs (optional)
+
+Claude Code / Codex / Gemini are installed on demand, not baked into the image:
+
+```bash
+make shell
+setup-ai          # idempotent — re-run after make down/up
+```
+
+Skips already-installed CLIs; final summary lists what's installed and what failed.
+
+### 5. Jupyter Lab Access
 
 Jupyter Lab runs on `http://localhost:18888` (no token required).
 
@@ -119,7 +130,7 @@ python train.py ...
 - **Multi-Node Training**: DeepSpeed distributed training support (SSH port 2222)
 - **Jupyter Lab**: Auto-forwarded from port 18888 → 8888
 - **npm Global Without sudo**: `npm -g` installs to `~/.local` by default
-- **Claude Plugin Auto Build**: Unbuilt Claude plugins are built automatically on container startup
+- **AI CLIs on demand**: Run `setup-ai` inside the container to install Claude Code / Codex / Gemini (idempotent)
 
 ## Port Mapping
 
@@ -137,7 +148,6 @@ python train.py ...
 - NAS workspace: `${NAS_HOME}/workspace` → `/home/dev/workspace`
 - NAS cache: `${NAS_HOME}/.cache` → `/home/dev/.cache`
 - NAS datasets: `${NAS_HOME}/datasets` → `/home/dev/datasets`
-- Claude session: `${NAS_HOME}/.claude-dev` → `/home/dev/.claude`
 - Tmux config: `${NAS_HOME}/.tmux.conf` → `/home/dev/.tmux.conf`
 
 ### Local Only (docker-compose.local.yml)
@@ -151,7 +161,7 @@ python train.py ...
 - flash-attn-4, deepspeed, accelerate
 - diffusers, transformers, peft, datasets
 - Jupyter Lab
-- Claude Code + Codex + Gemini CLI
+- Claude Code / Codex / Gemini via `setup-ai` (on-demand)
 - Zsh + antidote
 - SSH server/client (for multi-node training)
 
@@ -173,6 +183,9 @@ make shell        # Access shell
 make up-server
 make down-server
 make shell-server
+
+# Inside the container — install AI CLIs on demand (idempotent)
+setup-ai
 
 # One-off root command (no separate image required)
 docker exec -u root <container> <cmd>
@@ -222,14 +235,14 @@ Master Node                      Worker Nodes
 # 0. Master node: Build and push image
 cd .devcontainer
 make build
-docker push <your-registry>/uv-torch:py312-2.10.0-cu128-dev
+docker push <your-registry>/uv-torch:py312-2.10.0-cu128
 
 # 1. All nodes: Edit docker-compose.multinode.yml (volume paths)
 volumes:
   - /your/nas/path:/home/dev/workspace
 
 # 2. Worker nodes: Pull image
-docker pull <your-registry>/uv-torch:py312-2.10.0-cu128-dev
+docker pull <your-registry>/uv-torch:py312-2.10.0-cu128
 
 # 3. All nodes: Start container
 cd .devcontainer
@@ -373,8 +386,8 @@ make shell-ppocr
 
 ### Notes
 
-- The cu126 base image is tagged `<registry>/uv-torch:py312-2.10.0-cu126-dev` and coexists with the default cu128 base.
-- ppocr image is tagged `<registry>/ppocr:py312-cu126-dev`.
+- The cu126 base image is tagged `<registry>/uv-torch:py312-2.10.0-cu126` and coexists with the default cu128 base.
+- ppocr image is tagged `<registry>/ppocr:py312-cu126`.
 
 ## Troubleshooting
 

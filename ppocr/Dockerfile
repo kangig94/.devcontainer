@@ -8,7 +8,7 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-USER ${USERNAME}
+# USER=dev inherited from base. Privileged steps use sudo (NOPASSWD).
 
 # OpenCV/Paddle runtime libs not in base.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -18,12 +18,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # PaddlePaddle wheel mirror is per-CUDA; keep it overridable for future cu127+.
 ARG PADDLE_CUDA_TAG="cu126"
-RUN --mount=type=cache,target=/home/${USERNAME}/.cache/uv,uid=1000,gid=1000 \
+RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
     uv pip install paddlepaddle-gpu \
         --index-url https://www.paddlepaddle.org.cn/packages/stable/${PADDLE_CUDA_TAG}/ \
  && uv pip install paddleocr \
  && uv pip install shapely scikit-image pyclipper lmdb rapidfuzz \
         opencv-contrib-python cython albumentations
 
-USER root
 EXPOSE 22 8888 6006

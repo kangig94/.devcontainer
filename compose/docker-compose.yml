@@ -5,7 +5,7 @@ services:
     env_file:
       - .env
 
-    image: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu128}-dev
+    image: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu128}
     working_dir: /home/dev/workspace
     volumes:
       # Entrypoint script (runtime injection)
@@ -16,14 +16,8 @@ services:
       - ${HOST_CACHE_DIR:-~/.cache}:/home/dev/.cache
       - ${HOST_DATASETS_DIR:-../../datasets}:/home/dev/datasets
 
-      # Claude CLI (session data & config)
-      - ${HOST_CLAUDE_DIR:-${NAS_HOME}/.claude-dev}:/home/dev/.claude
-
       # Tmux config
       - ${NAS_HOME}/.tmux.conf:/home/dev/.tmux.conf
-
-      # Claude plugins cache on local disk (avoid NAS small-file I/O penalty)
-      - claude-plugins-cache:/home/dev/.claude/plugins/cache
 
       # X11 display forwarding (no-op if socket doesn't exist)
       - /tmp/.X11-unix:/tmp/.X11-unix
@@ -34,7 +28,6 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - USER_UID=${USER_UID:-1000}
       - USER_GID=${USER_GID:-1000}
-      # USERNAME is baked into the image as ENV (base Dockerfile), no override needed.
       - WORKSPACE_DIR=/home/dev/workspace
       - CERT_DIR=/home/dev/workspace/.devcontainer
 
@@ -62,9 +55,6 @@ services:
 
     networks:
       - dev_network
-
-volumes:
-  claude-plugins-cache:
 
 networks:
   dev_network:

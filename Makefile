@@ -79,7 +79,10 @@ help:
 	@echo "  make up-isaaclab     - Start container"
 	@echo "  make sim             - Launch Isaac Sim GUI (requires display)"
 	@echo "  make down-isaaclab   - Stop container"
-	@echo "  make shell-isaaclab  - Access container shell (dev user)"
+	@echo "  make shell-isaaclab  - Access container shell"
+	@echo ""
+	@echo "AI CLI install (run inside container after first up):"
+	@echo "  setup-ai           - Install Claude / Codex / Gemini (idempotent)"
 	@echo ""
 	@echo "Root access (one-off, no separate image needed):"
 	@echo "  docker exec -u root <container> <cmd>"
@@ -110,7 +113,7 @@ down-local:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml down
 
 shell-local:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml exec -u dev lab zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml exec lab zsh
 
 up-server:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
@@ -119,7 +122,7 @@ down-server:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
 
 shell-server:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec -u dev lab zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec lab zsh
 
 # ============================================
 # PaddleOCR overlay (cu126 base + paddle on top)
@@ -138,7 +141,7 @@ down-ppocr:
 	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml down
 
 shell-ppocr:
-	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml exec -u dev lab zsh
+	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml exec lab zsh
 
 # ============================================
 # Multi-node training overlay (DeepSpeed)
@@ -154,7 +157,7 @@ down-multinode:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml down
 
 shell-multinode:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml exec -u dev lab zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.multinode.yml exec lab zsh
 
 # ============================================
 # Isaac Lab overlay (isaacsim + IsaacLab editable install)
@@ -165,7 +168,7 @@ build-isaaclab: build
 
 sim:
 	xhost +local: > /dev/null 2>&1
-	docker exec -u dev isaaclab-lab-1 /opt/isaaclab/isaaclab.sh -s
+	docker exec isaaclab-lab-1 /opt/isaaclab/isaaclab.sh -s
 
 up-isaaclab:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml up -d
@@ -174,4 +177,4 @@ down-isaaclab:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml down
 
 shell-isaaclab:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec -u dev lab zsh
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec lab zsh

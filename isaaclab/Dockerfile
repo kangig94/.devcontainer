@@ -11,14 +11,13 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-# USERNAME inherited as ENV from base image.
+# USER=dev inherited from base image. Privileged steps use sudo (NOPASSWD
+# baked into base L1).
 ARG ISAACSIM_VERSION="6.0.0"
 ARG ISAACLAB_VERSION="v3.0.0-beta"
 ENV ISAACLAB_PATH=/opt/isaaclab \
     ACCEPT_EULA=Y \
     PRIVACY_CONSENT=Y
-
-USER ${USERNAME}
 
 # X11/OpenGL/Vulkan libs the slim cuda base lacks. Without these:
 #   libXt.so.6 / libGLU.so.1: cannot open shared object file
@@ -34,7 +33,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libfontconfig1 libgomp1 \
         libgl1 libglu1-mesa libegl1 libgles2 \
         libvulkan1 mesa-vulkan-drivers \
-    && sudo install -d -o ${USERNAME} -g ${USERNAME} ${ISAACLAB_PATH}
+    && sudo install -d -o dev -g dev ${ISAACLAB_PATH}
 
 # isaacsim from NVIDIA PyPI mirror + IsaacLab git editable install.
 #   --no-build-isolation: avoid uv fetching setuptools/wheel through the
@@ -42,9 +41,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # `echo "Yes" | python -c "import isaacsim"` accepts the Omniverse EULA at
 # build time. ACCEPT_EULA env alone isn't enough — kit kernel reads the
 # answer from stdin on first import; once accepted it persists in
-# ~/.nvidia-omniverse/. Must run as ${USERNAME} so the file lands in the
-# user home that the runtime (`gosu dev`) actually uses.
-RUN --mount=type=cache,target=/home/${USERNAME}/.cache/uv,uid=1000,gid=1000 \
+# ~/.nvidia-omniverse/. Must run as dev so the file lands in the user home
+# that the runtime (`gosu dev`) actually uses.
+RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
     uv pip install \
         --extra-index-url https://pypi.nvidia.com \
         --index-strategy unsafe-best-match \
@@ -52,12 +51,10 @@ RUN --mount=type=cache,target=/home/${USERNAME}/.cache/uv,uid=1000,gid=1000 \
         --prerelease=allow \
         "isaacsim[all,extscache]==${ISAACSIM_VERSION}" \
  && echo "Yes" | python -c "import isaacsim" 2>&1 | tail -3 \
- && git clone --depth 1 --branch ${ISAACLAB_VERSION} \
+ && GIT_SSL_NO_VERIFY=true git clone --depth 1 --branch ${ISAACLAB_VERSION} \
         https://github.com/isaac-sim/IsaacLab.git ${ISAACLAB_PATH} \
- && cd ${ISAACLAB_PATH} && ./isaaclab.sh --install \
+ && cd ${ISAACLAB_PATH} && GIT_SSL_NO_VERIFY=true ./isaaclab.sh --install \
  && uv pip install rerun-sdk
-
-USER root
 
 # Ports: SSH / Jupyter / Viser / Tensorboard / Rerun /WebRTC signal / WebRTC stream
 EXPOSE 22 8888 8080 6006 9876 49100 47998

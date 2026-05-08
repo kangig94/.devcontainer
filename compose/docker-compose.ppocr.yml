@@ -5,11 +5,11 @@ name: ppocr
 
 services:
   lab:
-    image: ${DOCKER_REGISTRY:-your-registry}/ppocr:${PY_TAG:-py312}-${CUDA_TAG:-cu126}-dev
+    image: ${DOCKER_REGISTRY:-your-registry}/ppocr:${PY_TAG:-py312}-${CUDA_TAG:-cu126}
     build:
       context: ..
       dockerfile: ppocr/Dockerfile
       args:
         # BASE_IMAGE must point at the cu126-flavored base built earlier.
-        BASE_IMAGE: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu126}-dev
+        BASE_IMAGE: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu126}
         PADDLE_CUDA_TAG: ${PADDLE_CUDA_TAG:-cu126}
