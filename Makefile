@@ -1,8 +1,7 @@
-.PHONY: build up down shell up-local down-local shell-local \
-        up-server down-server shell-server \
+.PHONY: build up down shell run \
         build-multinode up-multinode down-multinode shell-multinode \
         build-isaaclab up-isaaclab down-isaaclab shell-isaaclab sim \
-        build-ppocr up-ppocr down-ppocr shell-ppocr help run
+        build-ppocr up-ppocr down-ppocr shell-ppocr help
 
 # Auto-detect UID/GID for runtime (exported: compose env references these).
 # entrypoint.sh remaps the baked dev user (UID 1000) to match at startup.
@@ -53,14 +52,10 @@ help:
 	@echo ""
 	@echo "Base image:"
 	@echo "  make build         - Build base image"
-	@echo "  make up            - Start container (alias for up-local)"
+	@echo "  make up            - Start container"
 	@echo "  make down          - Stop container"
 	@echo "  make shell         - Access shell"
 	@echo "  make run           - build + up + shell"
-	@echo ""
-	@echo "Variants by environment (up/down/shell only):"
-	@echo "  make up-local      - With local-only mounts (Git creds, etc.)"
-	@echo "  make up-server     - NAS mounts only, no local settings"
 	@echo ""
 	@echo "PaddleOCR (auto-builds a cu126 base then layers ppocr):"
 	@echo "  make build-ppocr   - Build cu126 base + PaddleOCR overlay"
@@ -94,35 +89,17 @@ help:
 build:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 
-# Default `up`/`down`/`shell` use the local overlay (Git creds etc.).
-up: up-local
-down: down-local
-shell: shell-local
+up:
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
+
+down:
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
+
+shell:
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec lab zsh
 
 # Build and run in one command
 run: build up shell
-
-# ============================================
-# Up/down/shell variants
-# ============================================
-
-up-local:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml up -d
-
-down-local:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml down
-
-shell-local:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.local.yml exec lab zsh
-
-up-server:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
-
-down-server:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml down
-
-shell-server:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml exec lab zsh
 
 # ============================================
 # PaddleOCR overlay (cu126 base + paddle on top)

@@ -69,20 +69,6 @@ Jupyter Lab runs on `http://localhost:18888` (no token required).
 > command: [ "zsh", "-lc", "jupyter lab --ip=127.0.0.1 &> /tmp/jupyter.log & exec zsh -l" ]
 > ```
 
-## Environment Types
-
-Since NAS workspace is used, local and server environments share the same files:
-
-- **Local Environment**: Development on personal PC with VS Code Dev Containers. Mounts local-only settings like Git credentials, OpenCode auth, etc.
-- **Server Environment**: Running on GPU server with docker-compose. Uses only NAS mounts.
-
-### Commands by Environment
-
-- **Local**: `make build`, `make up`, `make shell` (or `up-local`/`shell-local` explicitly)
-- **Server**: `make build`, `make up-server`, `make shell-server`
-
-`make build` is identical for both — the local/server distinction only affects which mounts are added at `up` time.
-
 ## Usage
 
 ### Build Image
@@ -94,31 +80,13 @@ make build          # Auto-detects UID/GID from host
 
 UID/GID is reconciled at container startup by `entrypoint.sh` (runtime), based on mounted workspace ownership.
 
-### Development with VS Code (Local)
+### Development with VS Code
 
 1. Build image first: `make build`
 2. Open workspace folder in VS Code
 3. `Ctrl+Shift+P` → "Dev Containers: Reopen in Container"
 4. Container starts with existing image & connects
 5. Container keeps running even after VS Code closes
-
-### Server Environment (Training)
-
-```bash
-cd /path/to/your/workspace/.devcontainer
-
-# Build image (first time only)
-make build
-
-# Start container without local-only mounts
-make up-server
-
-# Access shell
-make shell-server
-
-# Run training
-python train.py ...
-```
 
 ## Key Features
 
@@ -144,15 +112,10 @@ python train.py ...
 
 ## Mounted Volumes
 
-### Base (All Environments)
 - NAS workspace: `${NAS_HOME}/workspace` → `/home/dev/workspace`
 - NAS cache: `${NAS_HOME}/.cache` → `/home/dev/.cache`
 - NAS datasets: `${NAS_HOME}/datasets` → `/home/dev/datasets`
 - Tmux config: `${NAS_HOME}/.tmux.conf` → `/home/dev/.tmux.conf`
-
-### Local Only (docker-compose.local.yml)
-- This file is intentionally minimal by default.
-- Add machine-specific mounts here when needed (for example local Git credentials).
 
 ## Installed Tools
 
@@ -170,19 +133,12 @@ python train.py ...
 ```bash
 make              # Show help
 
-# Base image (single command for all envs)
+# Base image
 make build        # Build (auto-detect UID/GID)
-make run          # build + up + shell
-
-# Local development (includes Git credentials, etc.)
-make up           # Start container with local mounts
+make up           # Start container
 make down         # Stop container
 make shell        # Access shell
-
-# Server training (NAS mounts only, no local settings)
-make up-server
-make down-server
-make shell-server
+make run          # build + up + shell
 
 # Inside the container — install AI CLIs on demand (idempotent)
 setup-ai
@@ -325,7 +281,7 @@ make sim
 
 ```bash
 make build-isaaclab          # Build image
-make up-isaaclab             # Start container (works on local and server)
+make up-isaaclab             # Start container
 make down-isaaclab           # Stop container
 make shell-isaaclab          # Access shell
 make sim                     # Launch Isaac Sim GUI (requires display)
@@ -413,14 +369,6 @@ If `~/.local/share` was previously created with a different owner, restart conta
 ```bash
 make down
 make up
-```
-
-### docker-compose.local.yml Not Found Error
-
-If local-only file was deleted, restore from git or use the server variant:
-```bash
-make up-server
-make shell-server
 ```
 
 ### Multi-Node SSH Connection Failed
