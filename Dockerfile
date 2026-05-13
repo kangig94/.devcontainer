@@ -114,7 +114,7 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
 
 # Image USER stays `dev` from L3 onward so `docker exec` (VS Code Attach,
 # manual exec, etc.) defaults to dev. PID 1 still needs root for UID remap /
-# ssh-keygen / ca-certs; entrypoint.sh re-execs itself via `sudo -E` to
+# ssh-keygen; entrypoint.sh re-execs itself via `sudo -E` to
 # elevate, then drops back to dev with `gosu dev` for the CMD.
 #
 # This sudoers drop-in is needed for that self-elevate to behave like the
@@ -138,7 +138,9 @@ RUN printf '%s\n' \
 
 # AI CLI on-demand installer — run `setup-ai` from inside the container after
 # `make up`. Idempotent; safe to re-run after `make down/up` recreations.
+COPY --chmod=0755 scripts/baked_entrypoint.sh /usr/local/bin/devcontainer-entrypoint
 COPY --chmod=0755 scripts/install_ai_cli.sh /usr/local/bin/setup-ai
 
 EXPOSE 8888 22 6006
+ENTRYPOINT ["/usr/local/bin/devcontainer-entrypoint"]
 CMD ["zsh", "-l"]

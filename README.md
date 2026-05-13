@@ -27,6 +27,9 @@ See `compose/.env.sample` for all available options.
 Notes:
 - Container user is always `dev`. UID/GID are reconciled to the host at startup.
 - Container home is always `/home/dev`.
+- Core startup bootstrap is baked into the image as `devcontainer-entrypoint`;
+  this compose file uses `scripts/entrypoint.sh` as a repo-local wrapper
+  that chains to the baked entrypoint.
 - For one-off privileged commands, use `docker exec -u root <container>` —
   there is no separate "root image".
 
