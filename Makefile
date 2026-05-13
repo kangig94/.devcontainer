@@ -14,6 +14,8 @@ torch ?= 2.10.0
 cu ?= 128
 ubuntu ?= 24.04
 cuda_toolkit ?= 12-8
+isaacsim ?= 6.0.0
+isaaclab ?= v3.0.0-beta
 
 PYTHON_VERSION := $(py)
 PY_TAG := py$(subst .,,$(py))
@@ -21,6 +23,9 @@ TORCH_VERSION := $(torch)
 CUDA_TAG := cu$(cu)
 UBUNTU_VERSION := $(ubuntu)
 CUDA_TOOLKIT_VERSION := $(cuda_toolkit)
+ISAACSIM_VERSION := $(isaacsim)
+ISAACLAB_VERSION := $(isaaclab)
+ISAACLAB_TAG := $(patsubst v%,%,$(ISAACLAB_VERSION))
 
 # flash-attn / deepspeed source builds use ~4-8GB RAM per job.
 # nproc/2 (the old default) on a 32-core box demanded ~128GB and froze
@@ -28,6 +33,7 @@ CUDA_TOOLKIT_VERSION := $(cuda_toolkit)
 MAX_JOBS ?= 2
 
 ML_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=$(CUDA_TAG) UBUNTU_VERSION=$(UBUNTU_VERSION) CUDA_TOOLKIT_VERSION=$(CUDA_TOOLKIT_VERSION) MAX_JOBS=$(MAX_JOBS)
+ISAACLAB_ENV := $(ML_ENV) ISAACSIM_VERSION=$(ISAACSIM_VERSION) ISAACLAB_VERSION=$(ISAACLAB_VERSION) ISAACLAB_TAG=$(ISAACLAB_TAG)
 
 # Paddle's latest supported CUDA is 12.6 — override the image tag so the
 # Paddle wheel index follows cu126. The base toolkit stays on the torch stack
@@ -48,6 +54,8 @@ help:
 	@echo "  cu=128 (default)       -> image tag ...-cu128-..."
 	@echo "  ubuntu=24.04 (default) -> FROM ubuntu:..."
 	@echo "  cuda_toolkit=12-8 (default) -> minimal nvcc/cudart-dev apt packages"
+	@echo "  isaacsim=6.0.0 (default) -> Isaac Sim PyPI package version"
+	@echo "  isaaclab=v3.0.0-beta (default) -> IsaacLab git tag; image tag drops leading v"
 	@echo "  MAX_JOBS=2 (default)   -> parallel jobs for source builds"
 	@echo ""
 	@echo "Example:"
@@ -144,17 +152,17 @@ shell-multinode:
 # ============================================
 
 build-isaaclab: build
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml build $(BUILD_FLAGS)
+	$(ISAACLAB_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml build $(BUILD_FLAGS)
 
 sim:
 	xhost +local: > /dev/null 2>&1
 	docker exec isaaclab-lab-1 /opt/isaaclab/isaaclab.sh -s
 
 up-isaaclab:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml up -d
+	$(ISAACLAB_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml up -d
 
 down-isaaclab:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml down
+	$(ISAACLAB_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml down
 
 shell-isaaclab:
-	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec lab zsh
+	$(ISAACLAB_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec lab zsh

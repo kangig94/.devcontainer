@@ -3,7 +3,7 @@ name: isaaclab
 
 services:
   lab:
-    image: ${DOCKER_REGISTRY:-local}/isaaclab:${PY_TAG:-py312}
+    image: ${DOCKER_REGISTRY:-local}/isaaclab:${PY_TAG:-py312}-${ISAACLAB_TAG:-3.0.0-beta}
     build:
       context: ..
       dockerfile: isaaclab/Dockerfile

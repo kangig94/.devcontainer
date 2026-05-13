@@ -263,6 +263,9 @@ Isaac Lab `v3.0.0-beta` (git, editable)
 **Bundled at runtime**: PyTorch 2.10.0+cu128, Warp 1.13, MuJoCo, Newton (via
 `isaacsim[all,extscache]`), flash-attn-4, deepspeed.
 
+**Image tag**: `isaaclab:py312-3.0.0-beta` by default (`isaaclab=v...` drops
+the leading `v` in the Docker tag).
+
 ### Quick Start
 
 ```bash
