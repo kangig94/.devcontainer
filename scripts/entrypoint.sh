@@ -17,6 +17,21 @@
 
 set -e
 
+# If the CUDA base image provides NVIDIA's entrypoint, run it first and have it
+# exec back into this script. Compose overrides image ENTRYPOINT, so without this
+# the base image's entrypoint.d hooks are skipped. The guard prevents recursion
+# when NVIDIA's script re-enters here.
+if [ -z "${NVIDIA_ENTRYPOINT_CHAINED:-}" ]; then
+    for nvidia_entrypoint in \
+        /opt/nvidia/nvidia_entrypoint.sh \
+        /usr/local/bin/nvidia_entrypoint.sh; do
+        if [ -x "$nvidia_entrypoint" ] && [ "$nvidia_entrypoint" != "$0" ]; then
+            export NVIDIA_ENTRYPOINT_CHAINED=1
+            exec "$nvidia_entrypoint" "$0" "$@"
+        fi
+    done
+fi
+
 # Image always uses dev. UID/GID are reconciled below.
 USERNAME="dev"
 TARGET_HOME="/home/dev"
@@ -29,7 +44,7 @@ TARGET_HOME="/home/dev"
 
 if [ "$(id -u)" != "0" ]; then
     if command -v sudo >/dev/null 2>&1; then
-        exec sudo -E "$0" "$@"
+        exec sudo -E env NVIDIA_ENTRYPOINT_CHAINED="${NVIDIA_ENTRYPOINT_CHAINED:-}" "$0" "$@"
     fi
     echo "[entrypoint] not root and sudo unavailable; exec'ing CMD as-is." >&2
     exec "$@"
