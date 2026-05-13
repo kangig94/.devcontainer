@@ -7,7 +7,8 @@ services:
       context: ..
       dockerfile: ${DOCKERFILE_PATH:-Dockerfile}
       args:
-        CUDA_BASE: ${CUDA_BASE:-12.9.1-cudnn-devel-ubuntu24.04}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
+        CUDA_TOOLKIT_VERSION: ${CUDA_TOOLKIT_VERSION:-12-8}
         PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
         TORCH_VERSION: ${TORCH_VERSION:-2.10.0}
         CUDA_TAG: ${CUDA_TAG:-cu128}

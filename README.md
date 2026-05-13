@@ -257,7 +257,7 @@ Isaac Sim is installed from the NVIDIA PyPI mirror as a regular venv package
 from a pinned git tag. This keeps Isaac Sim version bumps to a single
 `uv pip install` line and avoids the 28GB NGC tarball.
 
-**Layers**: `nvidia/cuda:12.9.1` → uv-torch base → `isaacsim==6.0.0` (PyPI) +
+**Layers**: `ubuntu:24.04` + minimal CUDA SDK → uv-torch base → `isaacsim==6.0.0` (PyPI) +
 Isaac Lab `v3.0.0-beta` (git, editable)
 
 **Bundled at runtime**: PyTorch 2.10.0+cu128, Warp 1.13, MuJoCo, Newton (via
@@ -328,9 +328,10 @@ Local Workstation                 GPU Cluster (headless)
 
 PaddleOCR overlay on top of a cu126-flavored base. Paddle's latest supported
 CUDA is 12.6, so this variant builds a separate base image with `CUDA_TAG=cu126`
-(system libs stay at 12.9.x — paddle wheels bundle their own CUDA libs).
+(Paddle wheels bundle their own CUDA libs; the base toolkit stays aligned with
+the torch stack by default).
 
-**Layers**: `nvidia/cuda:12.9.1` → uv-torch base (cu126 wheel) → paddlepaddle-gpu + paddleocr
+**Layers**: `ubuntu:24.04` + minimal CUDA SDK → uv-torch base → paddlepaddle-gpu + paddleocr
 
 ### Quick Start
 

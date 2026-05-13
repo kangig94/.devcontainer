@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.6
 #
 # PaddleOCR overlay on top of a cu126-torch base. Paddle's latest supported
-# CUDA is 12.6, so the base must be built with CUDA_TAG=cu126. CUDA_BASE
-# (system libs) can stay at the default 12.9.x — paddle wheels bundle their
-# own CUDA libs, so newer system libs are harmless.
+# CUDA is 12.6, so the overlay image is tagged with CUDA_TAG=cu126 and uses
+# the matching Paddle wheel index. The base CUDA toolkit stays aligned with
+# the torch stack by default because torch owns its runtime CUDA libraries.
 
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}

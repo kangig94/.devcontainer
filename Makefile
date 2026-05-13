@@ -12,25 +12,27 @@ export USER_GID := $(shell id -g)
 py ?= 3.12
 torch ?= 2.10.0
 cu ?= 128
-cuda_base ?= 12.9.1-cudnn-devel-ubuntu24.04
+ubuntu ?= 24.04
+cuda_toolkit ?= 12-8
 
 PYTHON_VERSION := $(py)
 PY_TAG := py$(subst .,,$(py))
 TORCH_VERSION := $(torch)
 CUDA_TAG := cu$(cu)
-CUDA_BASE := $(cuda_base)
+UBUNTU_VERSION := $(ubuntu)
+CUDA_TOOLKIT_VERSION := $(cuda_toolkit)
 
 # flash-attn / deepspeed source builds use ~4-8GB RAM per job.
 # nproc/2 (the old default) on a 32-core box demanded ~128GB and froze
 # both ing and h9 to a hard reboot. Hold at 2 unless explicitly raised.
 MAX_JOBS ?= 2
 
-ML_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=$(CUDA_TAG) CUDA_BASE=$(CUDA_BASE) MAX_JOBS=$(MAX_JOBS)
+ML_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=$(CUDA_TAG) UBUNTU_VERSION=$(UBUNTU_VERSION) CUDA_TOOLKIT_VERSION=$(CUDA_TOOLKIT_VERSION) MAX_JOBS=$(MAX_JOBS)
 
-# Paddle's latest supported CUDA is 12.6 — override CUDA_TAG so the base
-# torch wheel is cu126. CUDA_BASE (system libs) stays at the default 12.9.x;
-# paddle wheels bundle their own CUDA libs so newer system libs are fine.
-PADDLE_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=cu126 CUDA_BASE=$(CUDA_BASE) MAX_JOBS=$(MAX_JOBS)
+# Paddle's latest supported CUDA is 12.6 — override the image tag so the
+# Paddle wheel index follows cu126. The base toolkit stays on the torch stack
+# by default because torch owns its CUDA runtime through nvidia-* wheels.
+PADDLE_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(TORCH_VERSION) CUDA_TAG=cu126 UBUNTU_VERSION=$(UBUNTU_VERSION) CUDA_TOOLKIT_VERSION=$(CUDA_TOOLKIT_VERSION) MAX_JOBS=$(MAX_JOBS)
 
 COMPOSE_FLAGS := --env-file compose/.env
 BUILD_FLAGS := $(if $(verbose),--progress=plain,)
@@ -44,11 +46,12 @@ help:
 	@echo "  py=3.12 (default)      -> image tag prefix py312-..."
 	@echo "  torch=2.10.0 (default) -> image tag ...-2.10.0-..."
 	@echo "  cu=128 (default)       -> image tag ...-cu128-..."
-	@echo "  cuda_base=12.9.1-cudnn-devel-ubuntu24.04 (default) -> FROM nvidia/cuda:..."
+	@echo "  ubuntu=24.04 (default) -> FROM ubuntu:..."
+	@echo "  cuda_toolkit=12-8 (default) -> minimal nvcc/cudart-dev apt packages"
 	@echo "  MAX_JOBS=2 (default)   -> parallel jobs for source builds"
 	@echo ""
 	@echo "Example:"
-	@echo "  make build py=3.10 torch=2.5.1 cu=124 cuda_base=12.4.1-cudnn-devel-ubuntu22.04"
+	@echo "  make build py=3.10 torch=2.5.1 cu=124 cuda_toolkit=12-4"
 	@echo ""
 	@echo "Base image:"
 	@echo "  make build         - Build base image"
