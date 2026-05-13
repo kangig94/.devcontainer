@@ -1,7 +1,8 @@
 .PHONY: build up down shell run \
         build-multinode up-multinode down-multinode shell-multinode \
         build-isaaclab up-isaaclab down-isaaclab shell-isaaclab sim \
-        build-ppocr up-ppocr down-ppocr shell-ppocr help
+        build-ppocr up-ppocr down-ppocr shell-ppocr \
+        push push-ppocr push-isaaclab ci-env ci-build ci-push ci help
 
 # Auto-detect UID/GID for runtime (exported: compose env references these).
 # entrypoint.sh remaps the baked dev user (UID 1000) to match at startup.
@@ -42,6 +43,8 @@ PADDLE_ENV := PYTHON_VERSION=$(PYTHON_VERSION) PY_TAG=$(PY_TAG) TORCH_VERSION=$(
 
 COMPOSE_FLAGS := --env-file compose/.env
 BUILD_FLAGS := $(if $(verbose),--progress=plain,)
+target ?= base
+push ?= true
 
 .DEFAULT_GOAL := help
 
@@ -63,6 +66,7 @@ help:
 	@echo ""
 	@echo "Base image:"
 	@echo "  make build         - Build base image"
+	@echo "  make push          - Push base image"
 	@echo "  make up            - Start container"
 	@echo "  make down          - Stop container"
 	@echo "  make shell         - Access shell"
@@ -70,6 +74,7 @@ help:
 	@echo ""
 	@echo "PaddleOCR (auto-builds a cu126 base then layers ppocr):"
 	@echo "  make build-ppocr   - Build cu126 base + PaddleOCR overlay"
+	@echo "  make push-ppocr    - Push cu126 base + PaddleOCR overlay"
 	@echo "  make up-ppocr      - Start PaddleOCR container"
 	@echo "  make down-ppocr    - Stop PaddleOCR container"
 	@echo "  make shell-ppocr   - Access PaddleOCR shell"
@@ -82,10 +87,14 @@ help:
 	@echo ""
 	@echo "Isaac Lab (Isaac Sim + IsaacLab):"
 	@echo "  make build-isaaclab  - Build Isaac Lab overlay (depends on base)"
+	@echo "  make push-isaaclab   - Push base + Isaac Lab overlay"
 	@echo "  make up-isaaclab     - Start container"
 	@echo "  make sim             - Launch Isaac Sim GUI (requires display)"
 	@echo "  make down-isaaclab   - Stop container"
 	@echo "  make shell-isaaclab  - Access container shell"
+	@echo ""
+	@echo "CI:"
+	@echo "  make ci target=base|ppocr|isaaclab push=true"
 	@echo ""
 	@echo "AI CLI install (run inside container after first up):"
 	@echo "  setup-ai           - Install Claude / Codex / Gemini (idempotent)"
@@ -99,6 +108,9 @@ help:
 
 build:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
+
+push:
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml config --images | xargs -r -n 1 docker push
 
 up:
 	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml up -d
@@ -121,6 +133,10 @@ build-ppocr:
 	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.build.yml build $(BUILD_FLAGS)
 	# 2. Layer the ppocr overlay on top.
 	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml build $(BUILD_FLAGS)
+
+push-ppocr:
+	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml config --images | xargs -r -n 1 docker push
+	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml config --images | xargs -r -n 1 docker push
 
 up-ppocr:
 	$(PADDLE_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.ppocr.yml up -d
@@ -154,6 +170,10 @@ shell-multinode:
 build-isaaclab: build
 	$(ISAACLAB_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml build $(BUILD_FLAGS)
 
+push-isaaclab:
+	$(ML_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml config --images | xargs -r -n 1 docker push
+	$(ISAACLAB_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml config --images | xargs -r -n 1 docker push
+
 sim:
 	xhost +local: > /dev/null 2>&1
 	docker exec isaaclab-lab-1 /opt/isaaclab/isaaclab.sh -s
@@ -166,3 +186,43 @@ down-isaaclab:
 
 shell-isaaclab:
 	$(ISAACLAB_ENV) docker compose $(COMPOSE_FLAGS) -f compose/docker-compose.yml -f compose/docker-compose.isaaclab.yml exec lab zsh
+
+# ============================================
+# CI entrypoint (GitHub Actions calls this)
+# ============================================
+
+ci-env:
+	@if [ "$(GITHUB_ACTIONS)" = "true" ] || [ ! -f compose/.env ]; then \
+		test -n "$(DOCKER_REGISTRY)" || { echo "DOCKER_REGISTRY is required"; exit 1; }; \
+		mkdir -p compose; \
+		{ \
+			echo "DOCKER_REGISTRY=$(DOCKER_REGISTRY)"; \
+			echo "NAS_HOME=/tmp"; \
+			echo "HOST_WORKSPACE_DIR=/tmp"; \
+			echo "HOST_CACHE_DIR=/tmp"; \
+			echo "HOST_DATASETS_DIR=/tmp"; \
+		} > compose/.env; \
+	fi
+
+ci-build: ci-env
+	@case "$(target)" in \
+		base) $(MAKE) build verbose=1 ;; \
+		ppocr) $(MAKE) build-ppocr verbose=1 ;; \
+		isaaclab) $(MAKE) build-isaaclab verbose=1 ;; \
+		*) echo "Unsupported target: $(target)" >&2; exit 1 ;; \
+	esac
+
+ci-push:
+	@case "$(target)" in \
+		base) $(MAKE) push ;; \
+		ppocr) $(MAKE) push-ppocr ;; \
+		isaaclab) $(MAKE) push-isaaclab ;; \
+		*) echo "Unsupported target: $(target)" >&2; exit 1 ;; \
+	esac
+
+ci: ci-build
+	@if [ "$(push)" = "true" ]; then \
+		$(MAKE) ci-push; \
+	else \
+		echo "Skipping docker push because push=$(push)"; \
+	fi
