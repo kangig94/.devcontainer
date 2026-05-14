@@ -19,10 +19,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # PaddlePaddle wheel mirror is per-CUDA; keep it overridable for future cu127+.
 ARG PADDLE_CUDA_TAG="cu126"
 RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
-    uv pip install paddlepaddle-gpu \
+    umask 0002 \
+ && uv pip install paddlepaddle-gpu \
         --index-url https://www.paddlepaddle.org.cn/packages/stable/${PADDLE_CUDA_TAG}/ \
  && uv pip install paddleocr \
  && uv pip install shapely scikit-image pyclipper lmdb rapidfuzz \
-        opencv-contrib-python cython albumentations
+        opencv-contrib-python cython albumentations \
+ && find ${VENV_PATH:-/opt/venv} -type d \( ! -perm -0020 -o ! -perm -2000 \) -exec chmod g+rwx,g+s {} + \
+ && find ${VENV_PATH:-/opt/venv} -type f ! -perm -0020 -exec chmod g+rwX {} +
 
 EXPOSE 22 8888 6006

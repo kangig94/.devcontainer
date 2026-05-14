@@ -59,7 +59,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && echo 'Defaults env_keep += "http_proxy https_proxy ftp_proxy no_proxy HTTP_PROXY HTTPS_PROXY FTP_PROXY NO_PROXY"' > /etc/sudoers.d/proxy-env \
     && chmod 0440 /etc/sudoers.d/dev \
     && chmod 0440 /etc/sudoers.d/proxy-env \
-    && install -d -o dev -g dev ${VENV_PATH}
+    && install -d -m 2775 -o dev -g dev ${VENV_PATH}
 
 COPY files/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
 COPY files/shell-aliases.sh /etc/profile.d/shell-aliases.sh
@@ -85,7 +85,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libjpeg-dev libpng-dev libtiff-dev ffmpeg \
         openssh-server openssh-client pdsh systemd \
     && echo 'Acquire::https::Verify-Peer "false";' | sudo tee /etc/apt/apt.conf.d/99proxy-insecure >/dev/null \
-    && (curl -kfsSL https://deb.nodesource.com/setup_22.x | sudo env DEBIAN_FRONTEND=${DEBIAN_FRONTEND} bash - || true) \
+    && (curl -kfsSL https://deb.nodesource.com/setup_24.x | sudo env DEBIAN_FRONTEND=${DEBIAN_FRONTEND} bash - || true) \
     && sudo env DEBIAN_FRONTEND=${DEBIAN_FRONTEND} apt-get install -y nodejs \
     && (command -v npm >/dev/null 2>&1 || sudo env DEBIAN_FRONTEND=${DEBIAN_FRONTEND} apt-get install -y npm) \
     && sudo rm -f /etc/apt/apt.conf.d/99proxy-insecure \
@@ -137,6 +137,7 @@ ENV LD_LIBRARY_PATH=${NVIDIA_LIBRARY_PATHS}:${CUDA_HOME}/lib64:${LD_LIBRARY_PATH
 
 RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
     UV_INSECURE_FLAGS="--allow-insecure-host download.pytorch.org --allow-insecure-host download-r2.pytorch.org --allow-insecure-host pypi.org --allow-insecure-host files.pythonhosted.org" \
+    && umask 0002 \
     && uv venv ${VENV_PATH} --python ${PYTHON_VERSION} \
     && uv pip install ${UV_INSECURE_FLAGS} --upgrade pip setuptools wheel \
     && uv pip install ${UV_INSECURE_FLAGS} --no-build-isolation \
@@ -163,7 +164,9 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
                 *.so.*) unversioned="${base%%.so.*}.so"; [ -e "${CUDA_HOME}/lib64/$unversioned" ] || sudo ln -s "$base" "${CUDA_HOME}/lib64/$unversioned" ;; \
             esac; \
         done; \
-    done
+    done \
+    && find ${VENV_PATH:-/opt/venv} -type d \( ! -perm -0020 -o ! -perm -2000 \) -exec chmod g+rwx,g+s {} + \
+    && find ${VENV_PATH:-/opt/venv} -type f ! -perm -0020 -exec chmod g+rwX {} +
 
 # Image USER stays `dev` from L3 onward so `docker exec` (VS Code Attach,
 # manual exec, etc.) defaults to dev. PID 1 still needs root for UID remap /

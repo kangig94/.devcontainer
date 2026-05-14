@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libfontconfig1 libgomp1 \
         libgl1 libglu1-mesa libegl1 libgles2 \
         libvulkan1 mesa-vulkan-drivers \
-    && sudo install -d -o dev -g dev ${ISAACLAB_PATH}
+    && sudo install -d -m 2775 -o dev -g dev ${ISAACLAB_PATH}
 
 # isaacsim from NVIDIA PyPI mirror + IsaacLab git editable install.
 #   --no-build-isolation: avoid uv fetching setuptools/wheel through the
@@ -44,7 +44,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ~/.nvidia-omniverse/. Must run as dev so the file lands in the user home
 # that the runtime (`gosu dev`) actually uses.
 RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
-    uv pip install \
+    umask 0002 \
+ && uv pip install \
         --extra-index-url https://pypi.nvidia.com \
         --index-strategy unsafe-best-match \
         --no-build-isolation \
@@ -54,7 +55,9 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
  && GIT_SSL_NO_VERIFY=true git clone --depth 1 --branch ${ISAACLAB_VERSION} \
         https://github.com/isaac-sim/IsaacLab.git ${ISAACLAB_PATH} \
  && cd ${ISAACLAB_PATH} && GIT_SSL_NO_VERIFY=true ./isaaclab.sh --install \
- && uv pip install rerun-sdk
+ && uv pip install rerun-sdk \
+ && find ${VENV_PATH:-/opt/venv} -type d \( ! -perm -0020 -o ! -perm -2000 \) -exec chmod g+rwx,g+s {} + \
+ && find ${VENV_PATH:-/opt/venv} -type f ! -perm -0020 -exec chmod g+rwX {} +
 
 # Ports: SSH / Jupyter / Viser / Tensorboard / Rerun /WebRTC signal / WebRTC stream
 EXPOSE 22 8888 8080 6006 9876 49100 47998
