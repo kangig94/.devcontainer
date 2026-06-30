@@ -258,12 +258,12 @@ from a pinned git tag. This keeps Isaac Sim version bumps to a single
 `uv pip install` line and avoids the 28GB NGC tarball.
 
 **Layers**: `ubuntu:24.04` + minimal CUDA SDK → uv-torch base → `isaacsim==6.0.0` (PyPI) +
-Isaac Lab `v3.0.0-beta` (git, editable)
+Isaac Lab `v3.0.0-beta2` (git, editable)
 
 **Bundled at runtime**: PyTorch 2.10.0+cu128, Warp 1.13, MuJoCo, Newton (via
 `isaacsim[all,extscache]`), flash-attn-4, deepspeed.
 
-**Image tag**: `isaaclab:py312-3.0.0-beta` by default (`isaaclab=v...` drops
+**Image tag**: `isaaclab:py312-3.0.0-beta2` by default (`isaaclab=v...` drops
 the leading `v` in the Docker tag).
 
 ### Quick Start
@@ -275,6 +275,12 @@ cd .devcontainer
 # IsaacLab is already installed inside the image; no in-container install needed.
 make build-isaaclab
 make up-isaaclab
+```
+
+To rebuild the older beta image explicitly:
+
+```bash
+make build-isaaclab isaaclab=v3.0.0-beta
 ```
 
 ### Launch Isaac Sim GUI (local, requires display)

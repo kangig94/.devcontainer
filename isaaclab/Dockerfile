@@ -14,7 +14,7 @@ FROM ${BASE_IMAGE}
 # USER=dev inherited from base image. Privileged steps use sudo (NOPASSWD
 # baked into base L1).
 ARG ISAACSIM_VERSION="6.0.0"
-ARG ISAACLAB_VERSION="v3.0.0-beta"
+ARG ISAACLAB_VERSION="v3.0.0-beta2"
 ENV ISAACLAB_PATH=/opt/isaaclab \
     ACCEPT_EULA=Y \
     PRIVACY_CONSENT=Y

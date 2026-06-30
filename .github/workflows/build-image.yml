@@ -50,7 +50,7 @@ on:
       isaaclab_version:
         description: Isaac Lab git tag
         required: true
-        default: v3.0.0-beta
+        default: v3.0.0-beta2
         type: string
 
 concurrency:

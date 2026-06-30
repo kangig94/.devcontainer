@@ -16,7 +16,7 @@ cu ?= 128
 ubuntu ?= 24.04
 cuda_toolkit ?= 12-8
 isaacsim ?= 6.0.0
-isaaclab ?= v3.0.0-beta
+isaaclab ?= v3.0.0-beta2
 
 PYTHON_VERSION := $(py)
 PY_TAG := py$(subst .,,$(py))
@@ -58,7 +58,7 @@ help:
 	@echo "  ubuntu=24.04 (default) -> FROM ubuntu:..."
 	@echo "  cuda_toolkit=12-8 (default) -> minimal nvcc/cudart-dev apt packages"
 	@echo "  isaacsim=6.0.0 (default) -> Isaac Sim PyPI package version"
-	@echo "  isaaclab=v3.0.0-beta (default) -> IsaacLab git tag; image tag drops leading v"
+	@echo "  isaaclab=v3.0.0-beta2 (default) -> IsaacLab git tag; image tag drops leading v"
 	@echo "  MAX_JOBS=2 (default)   -> parallel jobs for source builds"
 	@echo ""
 	@echo "Example:"

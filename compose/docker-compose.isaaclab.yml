@@ -3,7 +3,7 @@ name: isaaclab
 
 services:
   lab:
-    image: ${DOCKER_REGISTRY:-local}/isaaclab:${PY_TAG:-py312}-${ISAACLAB_TAG:-3.0.0-beta}
+    image: ${DOCKER_REGISTRY:-local}/isaaclab:${PY_TAG:-py312}-${ISAACLAB_TAG:-3.0.0-beta2}
     build:
       context: ..
       dockerfile: isaaclab/Dockerfile
@@ -13,7 +13,7 @@ services:
         # the actual base image we just built.
         BASE_IMAGE: ${DOCKER_REGISTRY:-your-registry}/${IMAGE_NAME:-uv-torch}:${PY_TAG:-py312}-${TORCH_VERSION:-2.10.0}-${CUDA_TAG:-cu128}
         ISAACSIM_VERSION: ${ISAACSIM_VERSION:-6.0.0}
-        ISAACLAB_VERSION: ${ISAACLAB_VERSION:-v3.0.0-beta}
+        ISAACLAB_VERSION: ${ISAACLAB_VERSION:-v3.0.0-beta2}
     # base attaches `lab` to dev_network (192.168.10/24, NAS-safe);
     # isaaclab uses host networking, which is mutually exclusive with `networks`.
     network_mode: host
