@@ -251,36 +251,60 @@ SSH_PORT=2222
 
 ## Isaac Lab (Isaac Sim + Newton)
 
-Robotics simulation environment layered on top of the base `uv-torch` image.
-Isaac Sim is installed from the NVIDIA PyPI mirror as a regular venv package
-(no NGC `nvcr.io/nvidia/isaac-sim` base), and Isaac Lab is editable-installed
-from a pinned git tag. This keeps Isaac Sim version bumps to a single
-`uv pip install` line and avoids the 28GB NGC tarball.
+Robotics simulation environment layered on top of the normal `uv-torch` ML base
+by default. Add `isolate=true` to use the dedicated lightweight `isaaclab-base`
+instead. Isaac Sim is installed from the NVIDIA PyPI mirror as a regular venv
+package (no NGC `nvcr.io/nvidia/isaac-sim` base), and Isaac Lab is
+editable-installed from a pinned git tag. Dependency pins live in
+`isaaclab/versions/<tag>.env`, so `isaaclab=<tag>` selects the matching Python,
+PyTorch, CUDA wheel tag, Ubuntu, and Isaac Sim versions for the selected base
+and overlay.
 
-**Layers**: `ubuntu:24.04` + minimal CUDA SDK → uv-torch base → `isaacsim==6.0.0` (PyPI) +
-Isaac Lab `v3.0.0-beta2` (git, editable)
+**Default layers**: `uv-torch` ML base -> Isaac Sim system libraries ->
+`isaacsim[all,extscache]` (PyPI) -> Isaac Lab git tag (editable)
 
-**Bundled at runtime**: PyTorch 2.10.0+cu128, Warp 1.13, MuJoCo, Newton (via
-`isaacsim[all,extscache]`), flash-attn-4, deepspeed.
+**Isolated layers**: Ubuntu + dev/sudo + uv + git/curl +
+cmake/build-essential + torch runtime + Isaac Sim system libraries ->
+`isaacsim[all,extscache]` (PyPI) -> Isaac Lab git tag (editable)
 
-**Image tag**: `isaaclab:py312-3.0.0-beta2` by default (`isaaclab=v...` drops
-the leading `v` in the Docker tag).
+The isolated IsaacLab base intentionally excludes zsh, Node/npm, JupyterLab,
+SSH server, tmux, and the generic ML stack (`deepspeed`, `flash-attn`,
+`diffusers`, `datasets`). IsaacLab itself may install domain dependencies such
+as `transformers`.
+
+**Known manifests**:
+
+| Isaac Lab | Python | Torch | CUDA wheel | Isaac Sim |
+|-----------|--------|-------|------------|-----------|
+| `v2.3.0` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
+| `v2.3.1` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
+| `v2.3.2` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
+| `v3.0.0-beta2.patch1` | 3.12 | 2.10.0 | cu128 | 6.0.1 |
+
+**Image tags**: `uv-torch:py312-2.10.0-cu128` and
+`isaaclab:py312-3.0.0-beta2.patch1` by default. `isaaclab=v2.3.2` builds
+`uv-torch:py311-2.7.0-cu128` and `isaaclab:py311-2.3.2`. With `isolate=true`,
+the base tag becomes `isaaclab-base:<py>-<torch>-<cuda>`.
 
 ### Quick Start
 
 ```bash
 cd .devcontainer
 
-# `make build-isaaclab` chains: build (base) → build-isaaclab (overlay).
+# `make build-isaaclab` chains: uv-torch -> isaaclab overlay.
 # IsaacLab is already installed inside the image; no in-container install needed.
 make build-isaaclab
 make up-isaaclab
 ```
 
-To rebuild the older beta image explicitly:
+To build a specific Isaac Lab version:
 
 ```bash
-make build-isaaclab isaaclab=v3.0.0-beta
+make build-isaaclab isaaclab=v2.3.2
+make build-isaaclab-23x     # v2.3.0, v2.3.1, v2.3.2
+
+# Use the lightweight IsaacLab-only base instead of uv-torch.
+make build-isaaclab isaaclab=v2.3.2 isolate=true
 ```
 
 ### Launch Isaac Sim GUI (local, requires display)
@@ -292,7 +316,9 @@ make sim
 ### Commands
 
 ```bash
-make build-isaaclab          # Build image
+make build-isaaclab-base     # Build lightweight IsaacLab base image
+make build-isaaclab          # Build uv-torch base + final IsaacLab image
+make build-isaaclab isolate=true  # Build isolated base + final IsaacLab image
 make up-isaaclab             # Start container
 make down-isaaclab           # Stop container
 make shell-isaaclab          # Access shell
@@ -318,7 +344,6 @@ make sim                     # Launch Isaac Sim GUI (requires display)
 | Port | Purpose |
 |------|---------|
 | 8080 | Viser (Newton visualizer) |
-| 8888 | Jupyter Lab |
 | 9876 | Rerun |
 | 49100 | WebRTC signal (if livestream) |
 | 47998 | WebRTC stream (if livestream) |

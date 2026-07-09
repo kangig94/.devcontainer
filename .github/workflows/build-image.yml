@@ -42,16 +42,16 @@ on:
         required: true
         default: "2"
         type: string
-      isaacsim_version:
-        description: Isaac Sim version
-        required: true
-        default: "6.0.0"
-        type: string
       isaaclab_version:
-        description: Isaac Lab git tag
+        description: Isaac Lab git tag; dependencies are read from isaaclab/versions/<tag>.env
         required: true
-        default: v3.0.0-beta2
+        default: v3.0.0-beta2.patch1
         type: string
+      isolate:
+        description: Use the lightweight isaaclab-base instead of the generic ML base
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: docker-image-build-${{ github.repository }}
@@ -89,33 +89,45 @@ jobs:
           CUDA_TAG: ${{ inputs.cuda_tag }}
           CUDA_TOOLKIT_VERSION: ${{ inputs.cuda_toolkit_version }}
           MAX_JOBS: ${{ inputs.max_jobs }}
-          ISAACSIM_VERSION: ${{ inputs.isaacsim_version }}
           ISAACLAB_VERSION: ${{ inputs.isaaclab_version }}
+          ISAACLAB_ISOLATE: ${{ inputs.isolate }}
         run: |
           set -euo pipefail
 
           cu="${CUDA_TAG#cu}"
+          make_args=(
+            "target=$IMAGE_TARGET"
+            "push=$PUSH_IMAGE"
+            "MAX_JOBS=$MAX_JOBS"
+          )
 
-          make ci \
-            target="$IMAGE_TARGET" \
-            push="$PUSH_IMAGE" \
-            py="$PYTHON_VERSION" \
-            torch="$TORCH_VERSION" \
-            cu="$cu" \
-            cuda_toolkit="$CUDA_TOOLKIT_VERSION" \
-            MAX_JOBS="$MAX_JOBS" \
-            isaacsim="$ISAACSIM_VERSION" \
-            isaaclab="$ISAACLAB_VERSION"
+          if [ "$IMAGE_TARGET" = "isaaclab" ]; then
+            make_args+=(
+              "isaaclab=$ISAACLAB_VERSION"
+              "isolate=$ISAACLAB_ISOLATE"
+            )
+          else
+            make_args+=(
+              "py=$PYTHON_VERSION"
+              "torch=$TORCH_VERSION"
+              "cu=$cu"
+              "cuda_toolkit=$CUDA_TOOLKIT_VERSION"
+            )
+          fi
+
+          make ci "${make_args[@]}"
 
       - name: Summarize
         env:
           IMAGE_TARGET: ${{ inputs.image }}
           PUSH_IMAGE: ${{ inputs.push }}
+          ISAACLAB_ISOLATE: ${{ inputs.isolate }}
         run: |
           {
             echo "### Docker image build"
             echo
             echo "- Target: \`$IMAGE_TARGET\`"
             echo "- Pushed: \`$PUSH_IMAGE\`"
+            echo "- IsaacLab isolated base: \`$ISAACLAB_ISOLATE\`"
             echo "- Entrypoint: \`make ci\`"
           } >> "$GITHUB_STEP_SUMMARY"
