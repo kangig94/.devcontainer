@@ -15,6 +15,8 @@ FROM ${BASE_IMAGE}
 # USER=dev inherited from the base image. Privileged steps use sudo
 # (NOPASSWD baked into isaaclab/base/Dockerfile).
 ARG ISAACLAB_VERSION="v3.0.0-beta2.patch1"
+ARG OFFLINE_ASSETS="false"
+ARG ISAAC_ASSET_ROOT=""
 ENV VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:${PATH} \
     ISAACLAB_PATH=/opt/isaaclab \
@@ -53,6 +55,8 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
         [ -z "${PSUTIL_VERSION:-}" ] || echo "psutil==${PSUTIL_VERSION}"; \
         [ -z "${IPYTHON_VERSION:-}" ] || echo "ipython==${IPYTHON_VERSION}"; \
         [ -z "${TYPING_EXTENSIONS_VERSION:-}" ] || echo "typing_extensions==${TYPING_EXTENSIONS_VERSION}"; \
+        [ -z "${SKRL_MIN_VERSION:-}${SKRL_MAX_VERSION:-}" ] || \
+            echo "skrl>=${SKRL_MIN_VERSION:?},<${SKRL_MAX_VERSION:?}"; \
     } > /tmp/isaaclab-constraints.txt \
  && printf '%s\n' 'setuptools==70.3.0' > /tmp/isaaclab-build-constraints.txt \
  && uv pip install \
@@ -64,6 +68,15 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
  && echo "Yes" | python -c "import isaacsim" 2>&1 | tail -3 \
  && GIT_SSL_NO_VERIFY=true git clone --depth 1 --branch ${ISAACLAB_VERSION} \
         https://github.com/isaac-sim/IsaacLab.git ${ISAACLAB_PATH} \
+ && if [ "${OFFLINE_ASSETS}" = "true" ]; then \
+        test -n "${ISAAC_ASSET_ROOT}"; \
+        set -- ${ISAACLAB_PATH}/apps/isaaclab.python*.kit; \
+        test -e "$1"; \
+        sed -i -E \
+          "s#^(persistent\\.isaac\\.asset_root\\.(default|cloud|nvidia))[[:space:]]*=.*#\\1 = \"${ISAAC_ASSET_ROOT}\"#" \
+          "$@"; \
+        grep -H 'persistent.isaac.asset_root' "$@"; \
+    fi \
  && uv pip install "setuptools==70.3.0" \
  && python -c "import pkg_resources" \
  && uv pip install --no-build-isolation "flatdict==4.0.1" \

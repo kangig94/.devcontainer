@@ -73,6 +73,9 @@ ISAACLAB_BASE_TARGET := $(if $(ISAACLAB_ISOLATE),build-isaaclab-base,build)
 ISAACLAB_PUSH_BASE_ENV := $(if $(ISAACLAB_ISOLATE),$(ISAACLAB_BASE_ENV),$(ML_ENV))
 ISAACLAB_ENV := $(ML_ENV) ISAACLAB_BASE_IMAGE_NAME=$(ISAACLAB_BASE_IMAGE_NAME) ISAACLAB_VERSION=$(ISAACLAB_VERSION) ISAACLAB_TAG=$(ISAACLAB_TAG)
 ISAACLAB_23_VERSIONS ?= v2.3.0 v2.3.1 v2.3.2
+offline_assets ?= false
+ISAACLAB_OFFLINE_ASSETS := $(if $(filter true yes 1 on,$(offline_assets)),true,false)
+ISAACLAB_ENV += ISAACLAB_OFFLINE_ASSETS=$(ISAACLAB_OFFLINE_ASSETS) ISAAC_ASSET_ROOT=$(ISAAC_ASSET_ROOT)
 
 # Paddle's latest supported CUDA is 12.6 — override the image tag so the
 # Paddle wheel index follows cu126. The base toolkit stays on the torch stack
@@ -99,9 +102,11 @@ help:
 	@echo "  isaacsim=$(ISAACSIM_VERSION) -> resolved from the Isaac Lab manifest"
 	@echo "  MAX_JOBS=2 (default)   -> parallel jobs for source builds"
 	@echo "  isolate=true           -> build Isaac Lab from isaaclab-base instead of uv-torch"
+	@echo "  offline_assets=true    -> patch Isaac Lab Kit files to use the version manifest's local asset root"
 	@echo ""
 	@echo "Example:"
 	@echo "  make build-isaaclab isaaclab=v2.3.2"
+	@echo "  make build-isaaclab isaaclab=v2.3.2 offline_assets=true"
 	@echo ""
 	@echo "Base image:"
 	@echo "  make build         - Build base image"

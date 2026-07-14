@@ -305,6 +305,21 @@ make build-isaaclab-23x     # v2.3.0, v2.3.1, v2.3.2
 
 # Use the lightweight IsaacLab-only base instead of uv-torch.
 make build-isaaclab isaaclab=v2.3.2 isolate=true
+
+# Patch the image to use the version manifest's local Isaac Sim asset root.
+# This is off by default.
+make build-isaaclab isaaclab=v2.3.2 offline_assets=true
+```
+
+When `offline_assets=true`, the build rewrites `default`, `cloud`, and `nvidia`
+asset roots in every `apps/isaaclab.python*.kit` file. The local container path
+is versioned in `isaaclab/versions/<tag>.env` (`5.1` for Isaac Lab 2.3.x and
+`6.0` for Isaac Lab 3.0.0-beta2.patch1). Mount the matching host asset tree at
+runtime, for example:
+
+```yaml
+volumes:
+  - /data/isaacsim_assets:/data/isaacsim_assets:ro
 ```
 
 ### Launch Isaac Sim GUI (local, requires display)

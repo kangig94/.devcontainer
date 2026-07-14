@@ -52,6 +52,11 @@ on:
         required: true
         default: false
         type: boolean
+      offline_assets:
+        description: Patch Isaac Lab Kit files to use the version manifest's local asset root
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: docker-image-build-${{ github.repository }}
@@ -91,6 +96,7 @@ jobs:
           MAX_JOBS: ${{ inputs.max_jobs }}
           ISAACLAB_VERSION: ${{ inputs.isaaclab_version }}
           ISAACLAB_ISOLATE: ${{ inputs.isolate }}
+          ISAACLAB_OFFLINE_ASSETS: ${{ inputs.offline_assets }}
         run: |
           set -euo pipefail
 
@@ -105,6 +111,7 @@ jobs:
             make_args+=(
               "isaaclab=$ISAACLAB_VERSION"
               "isolate=$ISAACLAB_ISOLATE"
+              "offline_assets=$ISAACLAB_OFFLINE_ASSETS"
             )
           else
             make_args+=(
@@ -122,6 +129,7 @@ jobs:
           IMAGE_TARGET: ${{ inputs.image }}
           PUSH_IMAGE: ${{ inputs.push }}
           ISAACLAB_ISOLATE: ${{ inputs.isolate }}
+          ISAACLAB_OFFLINE_ASSETS: ${{ inputs.offline_assets }}
         run: |
           {
             echo "### Docker image build"
@@ -129,5 +137,6 @@ jobs:
             echo "- Target: \`$IMAGE_TARGET\`"
             echo "- Pushed: \`$PUSH_IMAGE\`"
             echo "- IsaacLab isolated base: \`$ISAACLAB_ISOLATE\`"
+            echo "- IsaacLab offline assets: \`$ISAACLAB_OFFLINE_ASSETS\`"
             echo "- Entrypoint: \`make ci\`"
           } >> "$GITHUB_STEP_SUMMARY"
