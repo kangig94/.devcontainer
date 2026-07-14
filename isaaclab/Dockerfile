@@ -93,6 +93,10 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
     PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com \
     ./isaaclab.sh --install \
  && uv pip install --constraint /tmp/isaaclab-constraints.txt rerun-sdk \
+ && if [ -n "${NCCL_VERSION:-}" ]; then \
+        uv pip install --no-deps --reinstall "nvidia-nccl-cu12==${NCCL_VERSION}"; \
+        python -c "import importlib.metadata as m; assert m.version('nvidia-nccl-cu12') == '${NCCL_VERSION}'"; \
+    fi \
  && find ${VENV_PATH:-/opt/venv} -type d \( ! -perm -0020 -o ! -perm -2000 \) -exec chmod g+rwx,g+s {} + \
  && find ${VENV_PATH:-/opt/venv} -type f ! -perm -0020 -exec chmod g+rwX {} +
 
