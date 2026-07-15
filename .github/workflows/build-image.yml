@@ -43,7 +43,7 @@ on:
         default: "2"
         type: string
       isaaclab_version:
-        description: Isaac Lab git tag; dependencies are read from isaaclab/versions/<tag>.env
+        description: Isaac Lab git tag; isaaclab/config.mk selects its dependency profile
         required: true
         default: v3.0.0-beta2.patch1
         type: string
@@ -53,7 +53,7 @@ on:
         default: false
         type: boolean
       offline_assets:
-        description: Patch Isaac Lab Kit files to use the version manifest's local asset root
+        description: Patch Isaac Lab Kit files to use the dependency profile's local asset root
         required: true
         default: false
         type: boolean

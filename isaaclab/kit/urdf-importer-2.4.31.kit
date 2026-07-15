@@ -1,0 +1,21 @@
+[package]
+title = "Isaac Lab URDF Importer Precache"
+description = "Downloads the Isaac Lab 2.3.x compatible URDF importer for offline images"
+version = "1.0.0"
+
+[dependencies]
+"isaacsim.asset.importer.urdf" = { version = "2.4.31", exact = true }
+
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",
+    "${exe-path}/extscore",
+    "${exe-path}/../exts",
+    "${exe-path}/../extsDeprecated",
+    "${exe-path}/../extscache",
+    "${exe-path}/../extsPhysics",
+    "${exe-path}/../isaacsim/exts",
+    "${exe-path}/../isaacsim/extsDeprecated",
+    "${exe-path}/../isaacsim/extscache",
+    "${exe-path}/../isaacsim/extsPhysics",
+]

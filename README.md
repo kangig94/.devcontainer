@@ -255,10 +255,9 @@ Robotics simulation environment layered on top of the normal `uv-torch` ML base
 by default. Add `isolate=true` to use the dedicated lightweight `isaaclab-base`
 instead. Isaac Sim is installed from the NVIDIA PyPI mirror as a regular venv
 package (no NGC `nvcr.io/nvidia/isaac-sim` base), and Isaac Lab is
-editable-installed from a pinned git tag. Dependency pins live in
-`isaaclab/versions/<tag>.env`, so `isaaclab=<tag>` selects the matching Python,
-PyTorch, CUDA wheel tag, Ubuntu, and Isaac Sim versions for the selected base
-and overlay.
+editable-installed from a pinned git tag. `isaaclab/config.mk` maps that tag to
+a reusable dependency profile in `isaaclab/profiles/` and to any small
+version-specific image policy.
 
 **Default layers**: `uv-torch` ML base -> Isaac Sim system libraries ->
 `isaacsim[all,extscache]` (PyPI) -> Isaac Lab git tag (editable)
@@ -272,14 +271,14 @@ SSH server, tmux, and the generic ML stack (`deepspeed`, `flash-attn`,
 `diffusers`, `datasets`). IsaacLab itself may install domain dependencies such
 as `transformers`.
 
-**Known manifests**:
+**Known releases and profiles**:
 
-| Isaac Lab | Python | Torch | CUDA wheel | Isaac Sim |
-|-----------|--------|-------|------------|-----------|
-| `v2.3.0` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
-| `v2.3.1` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
-| `v2.3.2` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
-| `v3.0.0-beta2.patch1` | 3.12 | 2.10.0 | cu128 | 6.0.1 |
+| Isaac Lab | Dependency profile | Python | Torch | CUDA wheel | Isaac Sim |
+|-----------|--------------------|--------|-------|------------|-----------|
+| `v2.3.0` | `isaacsim-5.1-py311-cu128` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
+| `v2.3.1` | `isaacsim-5.1-py311-cu128` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
+| `v2.3.2` | `isaacsim-5.1-py311-cu128` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
+| `v3.0.0-beta2.patch1` | `isaacsim-6.0-py312-cu128` | 3.12 | 2.10.0 | cu128 | 6.0.1 |
 
 **Image tags**: `uv-torch:py312-2.10.0-cu128` and
 `isaaclab:py312-3.0.0-beta2.patch1` by default. `isaaclab=v2.3.2` builds
@@ -306,21 +305,30 @@ make build-isaaclab-23x     # v2.3.0, v2.3.1, v2.3.2
 # Use the lightweight IsaacLab-only base instead of uv-torch.
 make build-isaaclab isaaclab=v2.3.2 isolate=true
 
-# Patch the image to use the version manifest's local Isaac Sim asset root.
+# Patch the image to use the dependency profile's local Isaac Sim asset root.
 # This is off by default.
 make build-isaaclab isaaclab=v2.3.2 offline_assets=true
 ```
 
 When `offline_assets=true`, the build rewrites `default`, `cloud`, and `nvidia`
 asset roots in every `apps/isaaclab.python*.kit` file. The local container path
-is versioned in `isaaclab/versions/<tag>.env` (`5.1` for Isaac Lab 2.3.x and
-`6.0` for Isaac Lab 3.0.0-beta2.patch1). Mount the matching host asset tree at
-runtime, for example:
+comes from the selected file in `isaaclab/profiles/` (`5.1` for Isaac Lab
+2.3.x and `6.0` for Isaac Lab 3.0.0-beta2.patch1). Mount the matching host asset
+tree at runtime, for example:
 
 ```yaml
 volumes:
   - /data/isaacsim_assets:/data/isaacsim_assets:ro
 ```
+
+The `v2.3.1` and `v2.3.2` image policy also enables the URDF and MJCF asset importer extensions
+in `isaaclab.python.headless.kit`. Headless training code can therefore import
+`isaacsim.asset` and the concrete importer modules after `AppLauncher` starts,
+without calling `enable_extension()` in each project.
+
+The image also precaches the exact URDF importer `2.4.31` required by Isaac Lab
+2.3.2. This avoids both the missing `set_merge_fixed_ignore_inertia()` API in
+the pip-bundled `2.4.30` extension and any runtime registry access on GPU nodes.
 
 ### Launch Isaac Sim GUI (local, requires display)
 

@@ -14,9 +14,6 @@ FROM ${BASE_IMAGE}
 
 # USER=dev inherited from the base image. Privileged steps use sudo
 # (NOPASSWD baked into isaaclab/base/Dockerfile).
-ARG ISAACLAB_VERSION="v3.0.0-beta2.patch1"
-ARG OFFLINE_ASSETS="false"
-ARG ISAAC_ASSET_ROOT=""
 ENV VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:${PATH} \
     ISAACLAB_PATH=/opt/isaaclab \
@@ -24,8 +21,8 @@ ENV VIRTUAL_ENV=/opt/venv \
     ACCEPT_EULA=Y \
     PRIVACY_CONSENT=Y \
     TERM=xterm-256color
-COPY isaaclab/versions /tmp/isaaclab-versions
 
+# Layer 1: Isaac Sim system libraries.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     sudo env DEBIAN_FRONTEND=noninteractive apt-get update \
@@ -38,7 +35,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libvulkan1 mesa-vulkan-drivers \
  && sudo install -d -m 2775 -o dev -g dev ${ISAACLAB_PATH}
 
-# isaacsim from NVIDIA PyPI mirror + IsaacLab git editable install.
+# Layer 2: reusable Python / Torch / Isaac Sim dependency profile.
+# Keeping ISAACLAB_VERSION out of this layer lets v2.3.x releases reuse it.
+ARG ISAACLAB_PROFILE="isaacsim-6.0-py312-cu128"
+COPY isaaclab/profiles/${ISAACLAB_PROFILE}.env /tmp/isaaclab-profile.env
+
 #   --no-build-isolation: avoid uv fetching setuptools/wheel through the
 #                         nvidia mirror (times out / lacks them)
 # `echo "Yes" | python -c "import isaacsim"` accepts the Omniverse EULA at
@@ -48,7 +49,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # that the runtime (`gosu dev`) actually uses.
 RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
     umask 0002 \
- && . "/tmp/isaaclab-versions/${ISAACLAB_VERSION}.env" \
+ && . /tmp/isaaclab-profile.env \
  && { \
         echo "torch==${TORCH_VERSION}"; \
         [ -z "${NUMPY_VERSION:-}" ] || echo "numpy==${NUMPY_VERSION}"; \
@@ -65,18 +66,15 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
         --no-build-isolation \
         --prerelease=allow \
         "isaacsim[all,extscache]==${ISAACSIM_VERSION}" \
- && echo "Yes" | python -c "import isaacsim" 2>&1 | tail -3 \
+ && echo "Yes" | python -c "import isaacsim" 2>&1 | tail -3
+
+# Layer 3: selected Isaac Lab source release and its domain dependencies.
+ARG ISAACLAB_VERSION="v3.0.0-beta2.patch1"
+RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
+    umask 0002 \
+ && . /tmp/isaaclab-profile.env \
  && GIT_SSL_NO_VERIFY=true git clone --depth 1 --branch ${ISAACLAB_VERSION} \
         https://github.com/isaac-sim/IsaacLab.git ${ISAACLAB_PATH} \
- && if [ "${OFFLINE_ASSETS}" = "true" ]; then \
-        test -n "${ISAAC_ASSET_ROOT}"; \
-        set -- ${ISAACLAB_PATH}/apps/isaaclab.python*.kit; \
-        test -e "$1"; \
-        sed -i -E \
-          "s#^(persistent\\.isaac\\.asset_root\\.(default|cloud|nvidia))[[:space:]]*=.*#\\1 = \"${ISAAC_ASSET_ROOT}\"#" \
-          "$@"; \
-        grep -H 'persistent.isaac.asset_root' "$@"; \
-    fi \
  && uv pip install "setuptools==70.3.0" \
  && python -c "import pkg_resources" \
  && uv pip install --no-build-isolation "flatdict==4.0.1" \
@@ -99,6 +97,60 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv,uid=1000,gid=1000 \
     fi \
  && find ${VENV_PATH:-/opt/venv} -type d \( ! -perm -0020 -o ! -perm -2000 \) -exec chmod g+rwx,g+s {} + \
  && find ${VENV_PATH:-/opt/venv} -type f ! -perm -0020 -exec chmod g+rwX {} +
+
+# Layer 4: optional registry extension bundle for offline execution.
+# Isaac Lab 2.3.1+ pins a registry-only URDF importer patch that is not in the
+# Isaac Sim 5.1 pip wheel. Precache its complete dependency closure while the
+# builder is online, then copy that resolved closure into Isaac Sim's extscache
+# so Kit can solve it without a registry connection at runtime.
+ARG URDF_IMPORTER_VERSION=""
+COPY isaaclab/kit/urdf-importer-2.4.31.kit /tmp/urdf-importer-2.4.31.kit
+RUN --mount=type=cache,target=/home/dev/.cache/ov,uid=1000,gid=1000 \
+    --mount=type=cache,target=/home/dev/.local/share/ov,uid=1000,gid=1000 \
+    if [ -n "${URDF_IMPORTER_VERSION}" ]; then \
+        test "${URDF_IMPORTER_VERSION}" = "2.4.31"; \
+        isaacsim /tmp/urdf-importer-2.4.31.kit \
+          --ext-precache-mode \
+          --no-window \
+          --/app/enableStdoutOutput=true; \
+        closure_dir="/home/dev/.local/share/ov/data/Kit/urdf-importer-${URDF_IMPORTER_VERSION}/1.0/exts/3"; \
+        test -d "${closure_dir}"; \
+        test -n "$(find "${closure_dir}" -mindepth 1 -maxdepth 1 -print -quit)"; \
+        isaacsim_root="$(python -c 'import isaacsim, os; print(os.path.dirname(isaacsim.__file__))')"; \
+        for extension_dir in "${closure_dir}"/*; do \
+            cp -aL "${extension_dir}" "${isaacsim_root}/extscache/"; \
+        done; \
+        test -n "$(find "${isaacsim_root}/extscache" -mindepth 1 -maxdepth 1 \
+          -type d -name "isaacsim.asset.importer.urdf-${URDF_IMPORTER_VERSION}+*" \
+          -print -quit)"; \
+    fi
+
+# Layer 5: cheap image policy. Changing
+# an asset path or a default Kit extension should only rebuild this cheap layer.
+ARG OFFLINE_ASSETS="false"
+ARG ISAAC_ASSET_ROOT=""
+ARG HEADLESS_ASSET_EXTENSIONS="false"
+RUN if [ "${HEADLESS_ASSET_EXTENSIONS}" = "true" ]; then \
+        kit_file="${ISAACLAB_PATH}/apps/isaaclab.python.headless.kit"; \
+        test -f "${kit_file}"; \
+        if ! grep -Fq '"isaacsim.asset.importer.urdf"' "${kit_file}"; then \
+            test -n "${URDF_IMPORTER_VERSION}"; \
+            sed -i "/\"isaacsim.simulation_app\"/i \"isaacsim.asset.importer.urdf\" = { version = \"${URDF_IMPORTER_VERSION}\", exact = true }" "${kit_file}"; \
+        fi; \
+        if ! grep -Fq '"isaacsim.asset.importer.mjcf"' "${kit_file}"; then \
+            sed -i '/"isaacsim.simulation_app"/i "isaacsim.asset.importer.mjcf" = {}' "${kit_file}"; \
+        fi; \
+        grep -F 'isaacsim.asset.importer.' "${kit_file}"; \
+    fi \
+ && if [ "${OFFLINE_ASSETS}" = "true" ]; then \
+        test -n "${ISAAC_ASSET_ROOT}"; \
+        set -- ${ISAACLAB_PATH}/apps/isaaclab.python*.kit; \
+        test -e "$1"; \
+        sed -i -E \
+          "s#^(persistent\\.isaac\\.asset_root\\.(default|cloud|nvidia))[[:space:]]*=.*#\\1 = \"${ISAAC_ASSET_ROOT}\"#" \
+          "$@"; \
+        grep -H 'persistent.isaac.asset_root' "$@"; \
+    fi
 
 # Ports: Viser / Tensorboard / Rerun / WebRTC signal / WebRTC stream
 EXPOSE 8080 6006 9876 49100 47998

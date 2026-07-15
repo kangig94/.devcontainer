@@ -9,18 +9,8 @@
 export USER_UID := $(shell id -u)
 export USER_GID := $(shell id -g)
 
-# Isaac Lab dependency manifests live in isaaclab/versions/<tag>.env.
-# Set only isaaclab=<tag>; the manifest supplies the matching Python/Torch/CUDA
-# base image inputs and Isaac Sim version. Lowercase CLI overrides still win.
-isaaclab ?= v3.0.0-beta2.patch1
-ISAACLAB_VERSION := $(isaaclab)
-ISAACLAB_DEP_FILE := isaaclab/versions/$(ISAACLAB_VERSION).env
-ISAACLAB_VERSION_LIST := $(patsubst isaaclab/versions/%.env,%,$(wildcard isaaclab/versions/*.env))
-ifneq ($(wildcard $(ISAACLAB_DEP_FILE)),)
-include $(ISAACLAB_DEP_FILE)
-else ifneq ($(filter build-isaaclab-base build-isaaclab push-isaaclab up-isaaclab down-isaaclab shell-isaaclab sim,$(MAKECMDGOALS)),)
-$(error No Isaac Lab dependency manifest for $(ISAACLAB_VERSION). Add $(ISAACLAB_DEP_FILE))
-endif
+# Release-to-profile and image-policy mapping lives with the Isaac Lab build.
+include isaaclab/config.mk
 
 # Lowercase command-line overrides for compatibility with existing usage.
 ifneq ($(origin py),undefined)
@@ -71,11 +61,11 @@ endif
 ISAACLAB_BASE_ENV := $(ML_ENV) IMAGE_NAME=$(ISAACLAB_ISOLATED_BASE_IMAGE_NAME) DOCKERFILE_PATH=isaaclab/base/Dockerfile
 ISAACLAB_BASE_TARGET := $(if $(ISAACLAB_ISOLATE),build-isaaclab-base,build)
 ISAACLAB_PUSH_BASE_ENV := $(if $(ISAACLAB_ISOLATE),$(ISAACLAB_BASE_ENV),$(ML_ENV))
-ISAACLAB_ENV := $(ML_ENV) ISAACLAB_BASE_IMAGE_NAME=$(ISAACLAB_BASE_IMAGE_NAME) ISAACLAB_VERSION=$(ISAACLAB_VERSION) ISAACLAB_TAG=$(ISAACLAB_TAG)
-ISAACLAB_23_VERSIONS ?= v2.3.0 v2.3.1 v2.3.2
+ISAACLAB_ENV := $(ML_ENV) ISAACLAB_BASE_IMAGE_NAME=$(ISAACLAB_BASE_IMAGE_NAME) ISAACLAB_VERSION=$(ISAACLAB_VERSION) ISAACLAB_TAG=$(ISAACLAB_TAG) ISAACLAB_PROFILE=$(ISAACLAB_PROFILE)
 offline_assets ?= false
 ISAACLAB_OFFLINE_ASSETS := $(if $(filter true yes 1 on,$(offline_assets)),true,false)
-ISAACLAB_ENV += ISAACLAB_OFFLINE_ASSETS=$(ISAACLAB_OFFLINE_ASSETS) ISAAC_ASSET_ROOT=$(ISAAC_ASSET_ROOT)
+ISAACLAB_HEADLESS_ASSET_EXTENSIONS := $(if $(filter true yes 1 on,$(HEADLESS_ASSET_EXTENSIONS)),true,false)
+ISAACLAB_ENV += ISAACLAB_OFFLINE_ASSETS=$(ISAACLAB_OFFLINE_ASSETS) ISAAC_ASSET_ROOT=$(ISAAC_ASSET_ROOT) ISAACLAB_HEADLESS_ASSET_EXTENSIONS=$(ISAACLAB_HEADLESS_ASSET_EXTENSIONS) URDF_IMPORTER_VERSION=$(URDF_IMPORTER_VERSION)
 
 # Paddle's latest supported CUDA is 12.6 — override the image tag so the
 # Paddle wheel index follows cu126. The base toolkit stays on the torch stack
@@ -94,15 +84,15 @@ help:
 	@echo "ML Research Dev Container - Makefile Commands"
 	@echo ""
 	@echo "Version settings (override on command line):"
-	@echo "  isaaclab=$(ISAACLAB_VERSION) -> loads isaaclab/versions/<tag>.env"
-	@echo "  available Isaac Lab manifests: $(ISAACLAB_VERSION_LIST)"
-	@echo "  py=$(PYTHON_VERSION), torch=$(TORCH_VERSION), cu=$(patsubst cu%,%,$(CUDA_TAG)) are resolved from the manifest"
+	@echo "  isaaclab=$(ISAACLAB_VERSION) -> profile $(ISAACLAB_PROFILE)"
+	@echo "  available Isaac Lab releases: $(ISAACLAB_VERSION_LIST)"
+	@echo "  py=$(PYTHON_VERSION), torch=$(TORCH_VERSION), cu=$(patsubst cu%,%,$(CUDA_TAG)) are resolved from the profile"
 	@echo "  py= / torch= / cu= / cuda_toolkit= still override manually"
 	@echo "  ubuntu=$(UBUNTU_VERSION) -> FROM ubuntu:..."
-	@echo "  isaacsim=$(ISAACSIM_VERSION) -> resolved from the Isaac Lab manifest"
+	@echo "  isaacsim=$(ISAACSIM_VERSION) -> resolved from the dependency profile"
 	@echo "  MAX_JOBS=2 (default)   -> parallel jobs for source builds"
 	@echo "  isolate=true           -> build Isaac Lab from isaaclab-base instead of uv-torch"
-	@echo "  offline_assets=true    -> patch Isaac Lab Kit files to use the version manifest's local asset root"
+	@echo "  offline_assets=true    -> patch Isaac Lab Kit files to use the profile's local asset root"
 	@echo ""
 	@echo "Example:"
 	@echo "  make build-isaaclab isaaclab=v2.3.2"
@@ -223,7 +213,7 @@ build-isaaclab: $(ISAACLAB_BASE_TARGET)
 build-isaaclab-23x:
 	@set -e; \
 	for version in $(ISAACLAB_23_VERSIONS); do \
-		echo "Building Isaac Lab $$version from isaaclab/versions/$$version.env"; \
+		echo "Building Isaac Lab $$version"; \
 		$(MAKE) build-isaaclab isaaclab=$$version; \
 	done
 
