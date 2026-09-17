@@ -53,6 +53,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && mkdir -p ${CUDA_HOME}/include ${CUDA_HOME}/lib64 \
     && rm -f /etc/apt/apt.conf.d/keep-cache
 
+# 사내 프록시가 TLS 를 가로채는 망을 위한 CA. `files/certs/*.crt` 는 gitignore
+# 되어 있고 빌드하는 사람이 직접 놓는다 (`files/certs/README.md`). 없으면 이
+# 단계는 아무것도 하지 않는다 — 프록시 없는 망에서는 필요 없기 때문이다.
+#
+# 프록시를 타는지는 **호스트의 `~/.docker/config.json`** 이 정한다. 이미지에는
+# 프록시 설정이 없고, CA 를 넣어도 라우팅은 바뀌지 않는다.
+COPY files/certs/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates \
+ && printf '%s\n' 'installed CA:' \
+ && ls /usr/local/share/ca-certificates/ | grep -c '\.crt$' || true
+
 USER dev
 WORKDIR /home/dev
 

@@ -6,3 +6,7 @@ scripts/ssh_keys
 hostfile
 **/*.crt
 **/*.pub
+
+# 사내 프록시 CA 는 이미지에 들어가야 한다. git 에는 여전히 올라가지 않는다
+# (.gitignore 의 `*.crt`). files/certs/README.md 참고.
+!files/certs/*.crt
