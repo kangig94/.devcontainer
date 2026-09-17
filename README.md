@@ -279,6 +279,11 @@ as `transformers`.
 | `v2.3.1` | `isaacsim-5.1-py311-cu128` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
 | `v2.3.2` | `isaacsim-5.1-py311-cu128` | 3.11 | 2.7.0 | cu128 | 5.1.0 |
 | `v3.0.0-beta2.patch1` | `isaacsim-6.0-py312-cu128` | 3.12 | 2.10.0 | cu128 | 6.0.1 |
+| `v3.0.0-EA` | `isaacsim-6.1-py312-cu130` | 3.12 | 2.11.0 | cu130 | 6.1.0 |
+
+`v3.0.0-EA` moves to cu130 because torch 2.11 (which it requires) has no cu128
+wheels; Isaac Lab itself declares both cu128 and cu130 indexes and only cu130
+can satisfy the pin.
 
 **Image tags**: `uv-torch:py312-2.10.0-cu128` and
 `isaaclab:py312-3.0.0-beta2.patch1` by default. `isaaclab=v2.3.2` builds

@@ -9,12 +9,13 @@
 
 isaaclab ?= v3.0.0-beta2.patch1
 ISAACLAB_VERSION := $(isaaclab)
-ISAACLAB_VERSION_LIST := v2.3.0 v2.3.1 v2.3.2 v3.0.0-beta2.patch1
+ISAACLAB_VERSION_LIST := v2.3.0 v2.3.1 v2.3.2 v3.0.0-beta2.patch1 v3.0.0-EA
 
 ISAACLAB_PROFILE_v2.3.0 := isaacsim-5.1-py311-cu128
 ISAACLAB_PROFILE_v2.3.1 := isaacsim-5.1-py311-cu128
 ISAACLAB_PROFILE_v2.3.2 := isaacsim-5.1-py311-cu128
 ISAACLAB_PROFILE_v3.0.0-beta2.patch1 := isaacsim-6.0-py312-cu128
+ISAACLAB_PROFILE_v3.0.0-EA := isaacsim-6.1-py312-cu130
 
 ISAACLAB_PROFILE := $(ISAACLAB_PROFILE_$(ISAACLAB_VERSION))
 ISAACLAB_PROFILE_FILE := isaaclab/profiles/$(ISAACLAB_PROFILE).env
