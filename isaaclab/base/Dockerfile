@@ -4,6 +4,8 @@
 # Keep only the shared runtime contract needed by isaaclab/Dockerfile:
 #   - dev user with passwordless sudo
 #   - uv-managed /opt/venv with Python + torch/torchvision/torchaudio
+#   - nvcc and the CUDA runtime headers matching CUDA_TAG, so CUDA/C++ extensions
+#     build in the image (torch wheels ship the runtime libraries, not nvcc)
 #   - Isaac Sim runtime system libraries
 #   - baked entrypoint for UID/GID remapping
 #
@@ -41,6 +43,22 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libfontconfig1 \
         libgl1 libglu1-mesa libegl1 libgles2 \
         libvulkan1 mesa-vulkan-drivers \
+    && . /etc/os-release \
+    && CUDA_REPO_DIST="ubuntu$(printf '%s' "${VERSION_ID}" | tr -d '.')" \
+    && CUDA_DIGITS="${CUDA_TAG#cu}" \
+    && CUDA_MAJOR="${CUDA_DIGITS%?}" CUDA_MINOR="${CUDA_DIGITS#"${CUDA_DIGITS%?}"}" \
+    && curl -kfsSL -o /tmp/cuda-keyring.deb \
+        https://developer.download.nvidia.com/compute/cuda/repos/${CUDA_REPO_DIST}/x86_64/cuda-keyring_1.1-1_all.deb \
+    && dpkg -i /tmp/cuda-keyring.deb \
+    && rm -f /tmp/cuda-keyring.deb \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        cuda-nvcc-${CUDA_MAJOR}-${CUDA_MINOR} \
+        cuda-cudart-dev-${CUDA_MAJOR}-${CUDA_MINOR} \
+        cuda-driver-dev-${CUDA_MAJOR}-${CUDA_MINOR} \
+        cuda-cccl-${CUDA_MAJOR}-${CUDA_MINOR} \
+    && ln -sfn /usr/local/cuda-${CUDA_MAJOR}.${CUDA_MINOR} /usr/local/cuda \
+    && ln -sfn targets/x86_64-linux/include /usr/local/cuda/include \
+    && ln -sfn targets/x86_64-linux/lib /usr/local/cuda/lib64 \
     && (userdel -r $(getent passwd 1000 | cut -d: -f1) 2>/dev/null || true) \
     && (groupdel $(getent group 1000 | cut -d: -f1) 2>/dev/null || true) \
     && groupadd -g 1000 dev \
